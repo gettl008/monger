@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+#define MAX_ARG_PAGES 32
+set -e
+export SHELL=$(type -p bash)
+. ~/.bashrc
+# freemem=`free | awk '{print $4}'`
+# freemem=`echo $freemem | cut -d' ' -f4`
+# MEMLIMIT=`expr $freemem \/ 4 \* 3`
+###############################################
+MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`
+function beginswith { 
+	case $2 in 
+		"$1"*) true;; 
+		*) false;; 
+	esac
+}
+###############################################
+
+function mongerinstall {
+	####################################
+	############ USAGE #################
+	####################################
+	usage=\
+"SYNOPSIS:\n\
+monger install python2.7\n\n\
+DESCRIPTION:\n\
+Installer for Python2.7 and its dependencies.\n\n\
+PYTHON2.7 DESCRIPTION:\n\
+Python2.7 is a programming language that lets you work quickly and integrate systems more effectively.\n\
+WEBSITE:\n\
+https://www.python.org/\n\n\
+CITATION:\n\
+OPTIONS:\n\
+  -i | --install_dir [DIR]\tInstallation directory [/usr/local/]\n\
+  -f | --force\t\t\tOverwrite existing program executables.\n\
+  -h | --help\t\t\tPrint help message\n\n\
+AUTHOR:\n\
+Noah Gettle 2016"
+	
+  	####################################
+  	######## INPUT PROCESSING ##########
+  	####################################
+  	MODULE_NAME=$1
+  	shift
+  	INSTALL_DIR=/usr/local
+  	FORCE=FALSE
+  	while [ "$1" != "" ]
+  	do
+  		case $1 in
+  			-i | --install_dir)
+  				if ! `beginswith "-" $2`
+  				then
+  					shift
+  					INSTALL_DIR=$1
+  				fi;;
+  			-f | --force)	FORCE=TRUE;;
+  			-h | --help)	echo -e $usage
+  							exit 1;;
+  			*)				echo -e "$1 not recognized as a valid option.\nUse option \"-h\" for more help."
+  							exit 1						
+  		esac
+  		shift
+  	done
+
+  	####################################
+
+	PATH_SEP=`echo $PATH | sed 's|:| |g'`
+	LD_LIBRARY_PATH_SEP=`echo $LD_LIBRARY_PATH | sed 's|:| |g'`
+	INCLUDE_SEP=`echo $INCLUDE | sed 's|:| |g'`
+
+	cur_dir=`pwd`
+	DOWNLOAD_DIR=$INSTALL_DIR/soft
+	mkdir -p $DOWNLOAD_DIR
+
+	###############################################
+
+	####################################
+	###### INSTALL DEPENDENCIES ########
+	####################################
+
+	###############################################
+
+	####################################
+	###### INSTALL MAIN PROGRAM ########
+	####################################
+
+	#############
+	# PYTHON2.7 #
+	#############
+	if ! type "python2.7" >/dev/null 2>/dev/null || [ "$FORCE" == "TRUE" ]
+	then
+		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
+		cd $DOWNLOAD_DIR
+		if ! test -f $DOWNLOAD_DIR/Python-2.7.12.tgz
+		then
+			wget https://www.python.org/ftp/python/2.7.12/Python-2.7.12.tgz
+		fi
+		tar -zxvf $DOWNLOAD_DIR/Python-2.7.12.tgz
+		cd $DOWNLOAD_DIR/Python-2.7.12
+		./configure --prefix=$INSTALL_DIR --with-threads --enable-shared && make && make install altinstall
+		rm $DOWNLOAD_DIR/Python-2.7.12.tgz
+		if `grep -q "export PYTHONPATH=" ~/.bashrc`
+		then
+			sed -i "s|export PYTHONPATH=.*|export PYTHONPATH=$INSTALL_DIR/lib/python2.7\:$PYTHONPATH|" ~/.bashrc
+		else
+			echo "export PYTHONPATH=$INSTALL_DIR/lib/python2.7:$PYTHONPATH" >> ~/.bashrc
+		fi
+	else
+		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
+	fi
+
+	#######
+	# PIP #
+	#######
+	if ! type "pip2" >/dev/null 2>/dev/null || [ "$FORCE" == "TRUE" ]
+	then
+		echo -e "> MONGER INSTALL: Installing $MODULE_NAME PIP."
+		cd $DOWNLOAD_DIR
+		rm -rf $DOWNLOAD_DIR/get-pip.py*
+		wget https://bootstrap.pypa.io/get-pip.py
+		python2.7 get-pip.py --prefix $INSTALL_DIR
+	else
+		echo "> MONGER INSTALL: $MODULE_NAME PIP already installed. Skipping..."
+	fi
+}
+
+############################################################
+if [ "$1" == "run" ]
+then
+	shift
+	run $MODULE_NAME $*
+elif [ "$1" == "install" ]
+then
+	shift
+	mongerinstall $MODULE_NAME $*
+else
+	echo -e "MONGER $MODULE_NAME ERROR: You must specify either \"run\" or \"install\""
+	exit 1
+fi

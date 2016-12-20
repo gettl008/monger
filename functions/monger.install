@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+set -e
+###############################################
+
+####################################
+########### FUNCTIONS ##############
+####################################
+function beginswith { 
+	case $2 in 
+		"$1"*) true;; 
+		*) false;; 
+	esac
+}
+
+
+XINSTALL_DIR=
+XMODULE_DIR=
+
+####################################
+############ USAGE #################
+####################################
+usage="SYNOPSIS:\n\
+monger install <PROGRAM> [ARGS]\n\n\
+DESCRIPTION:\n\
+Install programs that are components of Monger pipelines.\
+By default, Monger install modules will attempt to determine \
+if specified program and its requisite dependencies are already installed. \
+If not, an attempt will be made to install these.\n\n\
+OPTIONS:\n\
+-i | --install_dir\t[DIR]\tInstallation directory [$INSTALL_DIR]\n\
+-d | --module_dir\t[DIR]\tDirectory containing Monger install modules [$MODULE_DIR]\n\
+-c | --configs\t[FILE]\tConfiguration file\n\
+-f | --force\t\t\tOverwrite existing program executables.\n	
+-h | --help\t\t\tPrint help message\n\n\
+AUTHOR:\n\
+Noah Gettle 2016"
+
+####################################
+######## INPUT PROCESSING ##########
+####################################
+if [ $# -eq 0 ]
+then
+	echo -e $usage
+	exit 1
+fi
+
+# while `echo $1 | grep -qv '^-'`
+# do
+# 	echo $1
+# 	programs="$programs $1"
+# 	shift
+# done
+
+while [ ! `beginswith "-" $1`] && [ "$1" != "" ]
+do
+	programs="$programs $1"
+	shift
+done
+echo $programs
+echo $*
+
+while [ "$1" != "" ]
+do
+	case $1 in
+		-i | --install_dir)
+			if ! `beginswith "-" $2`
+			then
+				shift
+				INSTALL_DIR=$1
+			fi;;
+		-d | --module_dir)
+			if ! `beginswith "-" $1`
+			then
+				shift
+				MODULE_DIR=$1
+			fi;;
+		-c | --configs)	
+			if ! `beginswith "-" $1`
+			then
+				shift
+				. $1
+			fi;;
+		-f | --force)
+			FORCE="-f";;
+		-h | --help)
+			echo -e $usage
+			exit 1;;
+		*)	
+			echo -e "MONGER INSTALL ERROR: $1 is not a viable option\n\n$usage"
+			exit 1;;				
+	esac
+	shift
+done
+
+####################################
+
+if [[ ":$PATH:" != *":$INSTALL_DIR/bin:"* ]]
+then
+	if ! grep "^export PATH=" ~/.bashrc > /dev/null
+	then
+		echo -e "export PATH=$INSTALL_DIR/bin:$PATH" >> ~/.bashrc
+	else
+		sed -i "s|export PATH=.*|export PATH=$INSTALL_DIR/bin:$PATH|g" ~/.bashrc
+	fi 
+	. ~/.bashrc
+fi
+if [[ ":$LD_LIBRARY_PATH:" != *":$INSTALL_DIR/lib:"* ]]
+then
+	if ! grep "^export LD_LIBRARY_PATH=" ~/.bashrc > /dev/null
+	then
+		echo -e "export LD_LIBRARY_PATH=$INSTALL_DIR/lib:$LD_LIBRARY_PATH" >> ~/.bashrc
+	else
+		sed -i "s|export LD_LIBRARY_PATH=.*|export LD_LIBRARY_PATH=$INSTALL_DIR/lib:$LD_LIBRARY_PATH|g" ~/.bashrc
+	fi 
+	. ~/.bashrc
+fi
+if [[ ":$LD_LIBRARY_PATH:" != *":$INSTALL_DIR/lib64:"* ]]
+then
+	if ! grep "^export LD_LIBRARY_PATH=" ~/.bashrc > /dev/null
+	then
+		echo -e "export LD_LIBRARY_PATH=$INSTALL_DIR/lib64:$LD_LIBRARY_PATH" >> ~/.bashrc
+	else
+		sed -i "s|export LD_LIBRARY_PATH=.*|export LD_LIBRARY_PATH=$INSTALL_DIR/lib64:$LD_LIBRARY_PATH|g" ~/.bashrc
+	fi 
+	. ~/.bashrc
+fi
+if [[ ":$INCLUDE:" != *":$INSTALL_DIR/include:"* ]]
+then
+	if ! grep "^export INCLUDE=" ~/.bashrc > /dev/null
+	then
+		echo -e "export INCLUDE=$INSTALL_DIR/include:$INCLUDE" >> ~/.bashrc
+	else
+		sed -i "s|export INCLUDE=.*|export INCLUDE=$INSTALL_DIR/include:$INCLUDE|g" ~/.bashrc
+	fi 
+	. ~/.bashrc
+fi
+
+mkdir -p $INSTALL_DIR/bin
+mkdir -p $INSTALL_DIR/include
+mkdir -p $INSTALL_DIR/lib
+mkdir -p $INSTALL_DIR/lib64
+mkdir -p $INSTALL_DIR/etc
+mkdir -p $INSTALL_DIR/man
+
+####################################
+######## INSTALL MODULES ###########
+####################################
+
+for program in $programs
+do
+	module=`find $MODULE_DIR -maxdepth 4 -name "$program"`
+	$module install -i $INSTALL_DIR $FORCE
+done
+
+
+

@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+set -e
+. ~/.bashrc
+#### USAGE ###
+usage="SYNOPSIS:\n \
+./install\n\n \
+DESCRIPTION:\n \
+Installs Monger and third-party programs as specified in the \"thirdparty_install.cfg\" file loFUNCed in this directory.\n\
+DEPENDENCIES:
+The following are common but non-standard Linux programs required to use Monger's installation pipeline for third-party programs. Note that many of these programs can be downloaded and installed independently without these:\n\
+	GCC (>=4.8.2)\n\
+	wget\n\
+	tar\n\
+	Java Development Kit (JDK)\n\
+OPTIONS:\n\
+-c | --configs\t[FILE]\tFile specifying third-party programs to install. NOTE: Unless specified, installer will not overwrite any software already installed. [./thirdparty_install.cfg]\n\
+-p | --prefix\t[DIR]\tInstall directory [~/local]\n\
+-h | --help\t\t\tPrint help message"
+
+###############################################
+# READ IN ARGUMENTS #
+monger_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PREFIX=~/local
+while [ "$1" != "" ]
+do
+	case $1 in
+		-c | --configs)	shift
+						PROG_CONFIGS=$1;;
+		-p | --prefix)	shift
+						PREFIX=$1;;
+		-h | --help)	echo -e $usage
+						exit 1;;
+		*)				echo -e "$1 not recognized as a valid option.\nUse option \"-h\" for more help."
+						exit 1						
+	esac
+	shift
+done
+###############################################
+###############################################
+# DEFAULT SETTINGS #
+FASTQC=TRUE
+SGA=TRUE
+TRIMMOMATIC=TRUE
+BWA=TRUE
+TOPHAT2=TRUE
+GATK=TRUE
+BAYSIC=FALSE
+SNPEFF=TRUE
+HTSEQ=TRUE
+###############################################
+###############################################
+# READ INSTALLATION SETTINGS #
+if ! test -f "$PROG_CONFIGS"
+then
+	PROG_CONFIGS=$monger_dir/thirdparty_software.cfg
+fi
+. $PROG_CONFIGS
+
+###############################################
+###############################################
+# INSTALL MONGER SCRIPTS #
+mkdir -p $PREFIX/bin
+mkdir -p $PREFIX/soft
+module_dir=$monger_dir/modules
+sed -i'' -e "s|XMODULE_DIR=.*|MODULE_DIR=$module_dir|g" $monger_dir/monger
+sed -i'' -e "s|XINSTALL_DIR=.*|INSTALL_DIR=$PREFIX|g" $monger_dir/monger
+rm -rf $monger_dir/monger-e
+
+if ! `echo $PATH | grep -q "$PREFIX/bin"` # [[ ":$PATH:" != *":$INSTALL_DIR/bin:"* ]]
+then
+	if ! `grep -q "^export PATH=" ~/.bashrc` # > /dev/null
+	then
+		echo -e "export PATH=$PREFIX/bin:$PATH" >> ~/.bashrc
+	else
+		sed -i'' -e "s|export PATH=.*|export PATH=$PREFIX/bin:$PATH|g" ~/.bashrc
+		rm -rf ~/.bashrc-e
+	fi 
+	. ~/.bashrc
+fi
+# if ! `echo $PATH | grep -q "$PREFIX/bin"`
+# then
+# 	echo "here"
+# 	export PATH=$PREFIX/bin:$PATH
+# fi
+
+cp $monger_dir/monger $monger_dir/extras/*  $PREFIX/bin/
+
+
+#### MacOS issues
+# XCode
+if [ `uname` == "Darwin" ] && ! type "xcode-select" >/dev/null 2>/dev/null
+then
+	echo -e "MONGER INSTALL ERROR: To install Monger on MacOSX you must have XCode. Please got to \"https://itunes.apple.com/us/app/xcode/id497799835?mt=12\" to download and install."
+	exit 1
+fi
+if [ `uname` == "Darwin" ]
+then
+	# HomeBrew
+	if ! type "brew" >/dev/null 2>/dev/null
+	then
+		if [ "$PREFIX" == "/usr/local" ]
+		then
+			ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+		else
+			cd $PREFIX/soft
+			mkdir -p $PREFIX/soft/homebrew && curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C homebrew
+			ln -sf $PREFIX/soft/homebrew/bin/* $PREFIX/bin/
+		fi
+	fi
+	if ! type "wget" >/dev/null 2>/dev/null
+	then
+		brew install wget
+	fi
+fi
+
+###############################################
+###############################################
+# INSTALL MAIN THIRDPARTY SOFTWARE #
+monger install r -i $PREFIX
+monger install picard -i $PREFIX
+monger install perl5 -i $PREFIX
+monger install python2.7 -i $PREFIX
+monger install samtools -i $PREFIX
+monger install parallel -i $PREFIX
+###############################################
+###############################################
+# INSTALL AUXILLARY THIRDPARTY SOFTWARE #
+ALL=`eval echo \$$ALL | tr '[:lower:]' '[:upper:]'`
+NONE=`eval echo \$$NONE | tr '[:lower:]' '[:upper:]'`
+
+if [ "$NONE" != "TRUE" ]
+then
+	for FUNC in $LIST
+	do
+		PROG_LIST=$FUNC"_LIST"
+		FUNC_ALL=$FUNC"_ALL"
+		FUNC_ALL=`eval echo \$$FUNC_ALL | tr '[:lower:]' '[:upper:]'`
+		FUNC_NONE=$FUNC"_NONE"
+		FUNC_NONE=`eval echo \$$FUNC_NONE | tr '[:lower:]' '[:upper:]'`
+		if [ "$FUNC_NONE" != "TRUE" ]
+		then
+			for PROG in $PROG_LIST
+			do
+				PROG_LOGIC=`eval echo \$$PROG | tr '[:lower:]' '[:upper:]'`
+				if [ "$PROG_LOGIC" == "TRUE" ] || [ "$FUNC_ALL" == "TRUE" ] || [ "$ALL" == "TRUE" ]
+				then
+					echo "Installing $PROG"
+					monger install $PROG -i $PREFIX
+					sed -i "s|$PROG=.*|$PROG=INSTALLED|g" $PROG_CONFIGS
+				elif [ "$PROG_LOGIC" == "FORCE" ] || [ "$FUNC_ALL" == "FORCE" ] || [ "$ALL" == "FORCE" ]
+				then
+					echo "Installing $PROG"
+					monger install $PROG -i $PREFIX -f
+					sed -i "s|$PROG=.*|$PROG=INSTALLED|g" $PROG_CONFIGS
+				fi
+			done
+		fi
+	done
+fi
+
+
+echo "Monger installation complete."
+
+
+

@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+#define MAX_ARG_PAGES 32
+set -e
+export SHELL=$(type -p bash)
+. ~/.bashrc
+freemem=`free | awk '{print $4}'`
+freemem=`echo $freemem | cut -d' ' -f4`
+MEMLIMIT=`expr $freemem \/ 4 \* 3`
+export _JAVA_OPTIONS=-Xmx2g
+###############################################
+MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`
+module_name=`basename "$0" | tr "[A-Z]" "[a-z]"`
+function beginswith { 
+	case $2 in 
+		"$1"*) true;; 
+		*) false;; 
+	esac
+}
+###############################################
+###################
+### MODULE INFO ###
+###################
+DESCRIPTION="Python is a programming language that lets you work more quickly and integrate your systems more effectively."
+WEBSITE="https://www.python.org"
+CITATIONS=
+MODULE_AUTHOR="Noah Gettle"
+YEAR_WRITTEN="2016"
+###############################################
+MODULE_INFO=\
+"DESCRIPTION:\n\
+$DESCRIPTION\n\n\
+WEBSITE:\n\
+$WEBSITE\n\n\
+CITATION:\n\
+$CITATION\n\n"
+AUTHOR_INFO="$MODULE_AUTHOR $YEAR_WRITTEN"
+
+function mongerinstall {
+	MODULE_NAME=$1
+	shift
+	MODULE_INFO=$1
+	shift
+	AUTHOR_INFO=$1
+	shift
+	module_name=`echo $MODULE_NAME | tr "[A-Z]" "[a-z]"`
+	SUBTHREADS=1
+	####################################
+	############ USAGE #################
+	####################################
+	usage=\
+"SYNOPSIS:\n\
+monger install $module_name\n\n\
+$MODULE_INFO\
+OPTIONS:\n\
+  -i | --install_dir [DIR]\tInstallation directory [/usr/local/]\n\
+  -f | --force\t\t\tOverwrite existing program executables.\n\	
+  -h | --help\t\t\tPrint help message\n\n\
+AUTHOR:\n\
+$AUTHOR_INFO"
+
+	####################################
+	######## INPUT PROCESSING ##########
+	####################################
+	INSTALL_DIR=/usr/local
+	FORCE=FALSE
+	while [ "$1" != "" ]
+	do
+		case $1 in
+			-i | --install_dir)	
+				shift
+				INSTALL_DIR=$1;;
+			-f | --force)
+				FORCE=TRUE;;
+			-h | --help)
+				echo -e $usage
+				exit 1;;
+			*)	
+				echo -e "\nMONGER RUN $MODULE_NAME ERROR: $1 is not a valid option.\n$usage"
+				exit 1				
+		esac
+		shift
+	done
+
+	####################################
+
+	PATH_SEP=`echo $PATH | sed 's|:| |g'`
+	LD_LIBRARY_PATH_SEP=`echo $LD_LIBRARY_PATH | sed 's|:| |g'`
+	INCLUDE_SEP=`echo $INCLUDE | sed 's|:| |g'`
+
+	cur_dir=`pwd`
+	DOWNLOAD_DIR=$INSTALL_DIR/soft
+	mkdir -p $DOWNLOAD_DIR
+
+	####################################
+	####### INSTALL DEPENDENCIES #######
+	####################################
+
+	###############################################
+
+	####################################
+	####### INSTALL MAIN PROGRAM #######
+	####################################
+
+	###########
+	# PYTHON3 #
+	###########
+	if ! type "python3" >/dev/null 2>/dev/null || [ $FORCE == "TRUE" ]
+	then
+		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
+		cd $DOWNLOAD_DIR
+		if ! test -f $DOWNLOAD_DIR/Python-3.5.2.tgz
+		then
+			wget https://www.python.org/ftp/python/3.5.2/Python-3.5.2.tgz
+		fi
+		tar -zxvf $DOWNLOAD_DIR/Python-3.5.2.tgz
+		cd $DOWNLOAD_DIR/Python-3.5.2
+		./configure --prefix=$INSTALL_DIR
+		make
+		make install
+		rm -rf $DOWNLOAD_DIR/Python-3.5.2.tgz
+		if `grep -q "export PYTHONPATH=" ~/.bashrc`
+		then
+			sed -i "s|export PYTHONPATH=.*|export PYTHONPATH=$INSTALL_DIR/lib/python3.5\:$PYTHONPATH|" ~/.bashrc
+		else
+			echo "export PYTHONPATH=$INSTALL_DIR/lib/python3.5:$PYTHONPATH" >> ~/.bashrc
+		fi
+	else
+		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
+	fi
+	
+	#######
+	# PIP #
+	#######
+	if ! type "pip" >/dev/null 2>/dev/null || [ "$FORCE" == "TRUE" ]
+	then
+		echo -e "> MONGER INSTALL: Installing $MODULE_NAME PIP."
+		cd $DOWNLOAD_DIR
+		if ! test -f $DOWNLOAD_DIR/get-pip.py
+		then
+			wget https://bootstrap.pypa.io/get-pip.py
+		fi
+		python3 get-pip.py --prefix $INSTALL_DIR
+	else
+		echo "> MONGER INSTALL: $MODULE_NAME PIP already installed. Skipping..."
+	fi
+}
+
+############################################################
+if [ "$1" == "run" ]
+then
+	shift
+	run "$MODULE_NAME" "$MODULE_INFO" "$AUTHOR_INFO" $*
+elif [ "$1" == "install" ]
+then
+	shift
+	mongerinstall "$MODULE_NAME" "$MODULE_INFO" "$AUTHOR_INFO" $*
+else
+	echo -e \
+"SYNOPSIS:\n\
+monger [run|install] $module_name\n\n$MODULE_INFO$AUTHOR_INFO"
+	exit 1
+fi

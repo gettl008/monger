@@ -1,0 +1,675 @@
+#!/usr/bin/env bash
+#define MAX_ARG_PAGES 32
+set -e
+export SHELL=$(type -p bash)
+freemem=`free | awk '{print $4}'`
+freemem=`echo $freemem | cut -d' ' -f4`
+MEMLIMIT=`expr $freemem \/ 4 \* 3`
+ulimit -v $MEMLIMIT
+###############################################
+
+####################################
+########### FUNCTIONS ##############
+####################################
+function beginswith { 
+	case $2 in 
+		"$1"*) true;; 
+		*) false;; 
+	esac
+}
+
+function edit_mongerscript {
+	if [ $4 ]
+	then
+		if `grep -q  $'\t'"$2" $4`
+		then
+			sed -i "s|\t$2.*|\t$2=$3|" $4
+		else
+			var_value=`echo $3 | sed 's|\/|\\\/|g'`
+			sed -i "/^$1:$/{N;s|\[|\[\n\t$2=$var_value|}" $4
+		fi
+	fi
+}
+export -f edit_mongerscript
+
+function parse_inputs {
+	if ! test -f $1
+	then
+		if ! test -d $1
+		then
+			echo "MONGER RUN ERROR: Could not find input file or directory $1"
+			exit 1
+		else
+			for file in $1/*
+			do
+				inputs="$inputs $file"
+			done
+		fi
+	else
+		inputs=$1
+	fi
+	echo $inputs
+}
+export -f parse_inputs
+
+function run_element {
+	element=$1
+	mongerscript=$2
+	io_direction=$3
+	outdir=$4
+	MODULE_DIR=$5
+	input_file=$6
+	basename=$7
+	force=$8
+	module_args=$9
+	if [ "$force" == "true" ]
+	then
+		force="-f"
+	else
+		force=""
+	fi
+	if `echo $element | grep -q ":"`
+	then
+		program=`echo $element | cut -d":" -f1`
+		module_args=`echo $element | cut -d":" -f2`
+	else
+		program=$element
+	fi
+	mkdir -p $outdir/$basename		
+	module=`find $MODULE_DIR -maxdepth 4 -name "$program"`
+	if [ "$module" == "" ]
+	then
+		echo -e "\nMONGER RUN ERROR: Could not find the MongerModule \"$program\" in $MODULE_DIR.\n"
+		exit -1
+	fi
+	input_1=`cut -d" " -f1 $input_file | tr "\n" " " | sed 's/\(^\| \)-\($\| \)/ /g'`
+	input_2=`cut -d" " -f2 $input_file | tr "\n" " " | sed 's/\(^\| \)-\($\| \)/ /g'`
+	input_3=`cut -d" " -f3 $input_file | tr "\n" " " | sed 's/\(^\| \)-\($\| \)/ /g'`
+	names=`cut -d" " -f4 $input_file | tr "\n" " " | sed 's/\(^\| \)-\($\| \)/ /g'`
+	if [ "$io_direction" == "->" ] || [ "$io_direction" == "-|" ]
+	then
+		parseMongerScript.pl  \
+			-i $mongerscript \
+			-a "PROJECT_INFO $module_args PROGRAM_ARGUMENTS" \
+			-o $outdir/$basename/info.tmp
+		set +e
+		# echo -e "$module -1 $input_1 -2 $input_2 -3 $input3 \n\
+		# 	--args $outdir/$basename/info.tmp \n\
+		# 	-o $outdir/$basename \n\
+		# 	-n $basename \n\
+		# 	$module_args $force\n\n"
+		$module run -1 $input_1 -2 $input_2 -3 $input3 \
+			--args $outdir/$basename/info.tmp \
+			-o $outdir/$basename \
+			-n $basename \
+			$module_args $force
+		set -e
+		if [ "$io_direction" != "-|" ] && [ test -f $outdir/$basename/outputs.txt ]
+		then
+			cat $outdir/$basename/outputs.txt >> $outdir/$basename/outputs.txt
+		fi
+	else
+		parseMongerScript.pl  \
+			-i $mongerscript \
+			-a "PROJECT_INFO $module_args PROGRAM_ARGUMENTS" \
+			-o $outdir/$basename/info.tmp
+		module_args=`echo $module_args | sed 's|\s| ::: |g'`
+		set +e
+		parallel $module ::: run \
+			::: -1 ::: $input_1 \
+			::: -2 ::: $input_2 \
+			::: -3 ::: $input_3 \
+			::: -n ::: $names \
+			::: -o ::: $outdir/$basename \
+			::: --args ::: $outdir/$basename/info.tmp \
+			$module_args ::: $force
+		set -e
+		if [ "$io_direction" != "=|" ]
+		then
+			for name in $names
+			do
+				cat $outdir/$basename/$name/outputs.txt >> $outdir/$basename/outputs.txt
+			done
+		fi
+	fi
+}
+export -f run_element
+
+function run_mongerscript {
+	input_file=$1
+	mongerscript=$2
+	# Get relevant variables from mongerscript
+	rm -rf /tmp/mongerinfo.tmp
+	parseMongerScript.pl \
+		-i $mongerscript \
+		-a "PROJECT_INFO INPUT_INFO PROGRAM PROGRAM_ELEMENTS MODULE_ARGUMENTS" \
+		-o /tmp/mongerinfo.tmp
+	. /tmp/mongerinfo.tmp
+	mkdir -p $OUTPUT_DIRECTORY/$PROJECT_NAME/logs
+	# Set input option to be all files separately
+	element_io="->"
+	element_input=$input_file
+	for element in $RUN_PROGRAM
+	do
+		first_subelement=true
+		if [ "$element" != "->" ] && [ "$element" != "=>" ] &&\
+			 [ "$element" != "-|" ] && [ "$element" != "=|" ]
+		then
+			element_name=$element
+			# Get components (subelements) of current program element
+			element=${!element_name}
+			# Assign subelement input and input options to default settings if first process
+			if [ "$first_subelement" == "true" ]
+			then
+				subelement_input=$element_input
+				subelement_io=$element_io
+			fi
+			# If no subelements of current element, try to run as independent thing.
+			if [ "$element" == "" ]
+			then
+				element=$element_name
+			fi
+			# Execute each subelement
+			for subelement in $element
+			do
+				if [ "$subelement" != "->" ] && [ "$subelement" != "=>" ] &&\
+					 [ "$subelement" != "-|" ] && [ "$subelement" != "=|" ] &&\
+						  [ "$subelement" != "+" ]
+				then
+					# Determine if subelement is beginning of a groupped set of subelements (subprocess i.e. Should be run in parallel)
+					if `echo $subelement | grep -q "^("`
+					then
+						subprocess_subelements=${subelement:1}
+						subprocess=true
+					# If subelement is not a component of a subprocess run normally  
+					elif [ "$subprocess" != "true" ]
+					then
+						if [ "$element_name" == "$subelement" ]
+						then
+							subelement_outdir=$OUTPUT_DIRECTORY/$PROJECT_NAME/$element_name
+						else
+							subelement_outdir=$OUTPUT_DIRECTORY/$PROJECT_NAME/$element_name/$subelement
+						fi
+						basename=`cut -d" " -f4 $subelement_input | head -1`
+						if [ "$subelement_io" == "=>" ] || [ "$subelement_io" == "=|" ]
+						then
+							basename=${name%.*}
+						fi
+						if `echo "$FORCE" | grep -q "$subelement"` || `echo "$FORCE" | grep -q "$element"`
+						then
+							force=true
+						else
+							force=false
+						fi
+						module_args="$subelement-modargs"
+						module_args=${!module_args}
+						run_element $subelement \
+							$mongerscript \
+							$subelement_io \
+							$subelement_outdir \
+							$MODULE_DIR \
+							$subelement_input \
+							$basename \
+							$force \
+							"$module_args"
+						if [ "$subelement_io" != "-|" ] || "$subelement_io" != "=|"
+						then
+							subelement_input=$subelement_outdir/$basename/outputs.txt
+						fi
+						cat $subelement_outdir/$basename/log.txt >> $OUTPUT_DIRECTORY/$PROJECT_NAME/logs/$basename.log.txt
+					else
+						if `echo $subelement | grep -q ")$"`
+						then
+							last_subprocess_subelement=${subelement:0:${#subelement}-1}
+							subprocess_subelements="$subprocess_subelements $last_subprocess_subelement"
+							subelement_outdirs=`parallel echo \
+								::: $OUTPUT_DIRECTORY/$PROJECT_NAME/$element_name/ \
+								::: $subprocess_subelements | \
+								tr -d " "`
+							basename=`cut -d" " -f4 $subelement_input | tr "\n" " " | head -1`
+							if [ "$subelement_io" == "=>" ] || [ "$subelement_io" == "=|" ]
+							then
+								basename=${name%.*}
+							fi
+							for subprocess_subelement in $subprocess_subelements
+							do
+								if `echo "$FORCE" | grep -q "$subprocess_subelement"` || `echo "$FORCE" | grep -q "$element"`
+								then
+									force="$force true"
+								else
+									force="$force false"
+								fi
+								module_arg="$subelement-modargs"
+								module_arg=`eval echo \$$module_arg`
+								module_args="$module_args \"$module_arg\""
+							done
+							parallel run_element ::: $subprocess_subelements \
+								::: $mongerscript \
+								::: $subelement_io \
+								::: $subelement_outdirs \
+								::: $MODULE_DIR \
+								::: $subelement_input \
+								::: $basename \
+								::: $force \
+								::: $module_args
+							if [ "$subelement_io" != "-|" ] || "$subelement_io" != "=|"
+							then
+								outputs=`parallel echo \
+									::: $subelement_outdirs/ \
+									::: $basename/output.txt | \
+									tr -d " "`
+								cat $outputs > $OUTPUT_DIRECTORY/$PROJECT_NAME/$element_name/$basename.outputs.txt
+								subelement_input=$OUTPUT_DIRECTORY/$PROJECT_NAME/$element_name/$basename.outputs.txt
+							fi
+							logs=`parallel echo \
+								::: $subelement_outdirs/ \
+								::: $basename/log.txt | \
+								tr -d " "`
+							cat $logs >> =$OUTPUT_DIRECTORY/$PROJECT_NAME/logs/$basename.log.txt
+							subprocess=false
+						else
+							subprocess_subelements="$subprocess_subelements $subelement"
+						fi
+					fi
+				elif [  "$subelement" != "+" ]
+				then
+					subelement_io=$subelement
+				fi 
+				first_subelement=false
+			done
+			if [ "$element_io" != "-|" ] || [ "$element_io" != "=|" ]
+			then
+				element_input=$subelement_input
+			fi
+		else
+			element_io=$element
+		fi
+	done	
+}
+export -f run_mongerscript
+
+####################################
+############ USAGE #################
+####################################
+
+OUTPUT_DIRECTORY=~/monger.output
+PROJECT_NAME=`date +"%d-%m-%y"`
+PHRED_BASE=33
+THREADS=`nproc`
+SUBTHREADS=1
+SEQUENCING_FORMAT=se
+XMODULE_DIR=
+PAIRED=1
+help=false
+
+usage="\nSYNOPSIS:\n\
+monger run <PROGRAM/MONGERSCRIPT>\n\n\
+DESCRIPTION:\n\
+Runs an NGS program (as a MongerModule) or MongerScript through Monger.\n\n\
+OPTIONS:\n\
+-M | --MODULE_DIR\t[DIR]\tDirectory in which to search for MongerModules[$MODULE_DIR].\n\
+-T | --THREADS\t[INT]\tTotal number of threads to allocate [$THREADS]\n\
+-t | --SUBTHREADS\t[INT]\tNumber of threads to make available to each input being processed [1]\n\
+-a | --args\t[STR]\tQuoted string containing arguments for the specified MongerModule (if not a MongerScript). To access a MongerModule's usage type 'monger run <PROGRAM> -h .\n\n\
+Project Info:\n\
+-o | --OUTPUT_DIRECTORY\t[DIR]\tOutput directory [~/monger.output]\n\
+-p | --PROJECT_NAME\t[STR]\tName of project. This helps differentiate different runs [DATE]\n\
+-b | --PHRED_BASE\t[33|64]\tFor FASTQ inputs, phred quality base score.[33]\n\
+-f | --SEQUENCING_FORMAT\t[se|pe|mp]\tFormat of FASTA/FASTQ files (se=Single-end, pe=Paired-end, mp=Mate-Pair)[se]\n\
+-P | --PLOIDY\t[haploid|diploid]\n\
+-Rf | --REFERENCE_FASTA\t[FILE]\n\
+-Rg | --REFERENCE_GFF\t[FILE]\tGFF3 formated reference annotations.\n\
+-F | --FORCE\t[STR]\tForce rerun element or module (ALL=Force rerun all elements).\n\n\
+Input Info:\n\
+-i | --INPUTS\t[FILE/DIR]\tInput file(s) or directory containing input files.\n\
+-I | --INPUTS_LIST\t[FILE]\tText file containing files to input. Files should be one per line for single-end, two for mates.\n\
+-x | --PAIRED [INT]\tIf input files are paired and but not specified in a list, the field relative to end (based on \"_\" as separator) in each name that indicates pair number\n\n\
+Program:\n\
+-r | --RUN_PROGRAM\t[STR]\tString representing how inputs should be processed (for more details see manual)\n\n\
+-h | --help\t\t\tPrint help message\n\n\
+AUTHOR:\n\
+Noah Gettle 2016"
+
+####################################
+######## INPUT PROCESSING ##########
+####################################
+# Read in inputs #
+if [ $# -eq 0 ]
+then
+	echo -e $usage
+	exit 1
+fi
+
+input_num=$#
+
+if [[ $1 == "-"* ]]
+then
+	if [ "$1" == "-h" ] || [ "$1" == "--help" ]
+	then
+		echo -e $usage
+		exit 1
+	fi
+else
+	if [ `head -1 $1` == "#mongerscript" ]
+	then
+		MONGERSCRIPT=$1
+		cp $MONGERSCRIPT /tmp/mongerscript.txt
+		MONGERSCRIPT=/tmp/mongerscript.txt
+		if ! test -f $MONGERSCRIPT
+		then
+			echo -e "\nMONGER RUN ERROR: Could not find MongerScript $MONGERSCRIPT.\n"
+			exit -1
+		else
+			# Add default info to script
+			DEFAULTS="OUTPUT_DIRECTORY PROJECT_NAME PHRED_BASE THREADS SUBTHREADS SEQUENCING_FORMAT MODULE_DIR"
+			for default in $DEFAULTS
+			do
+				if ! `grep -q $'\t'"$default" $MONGERSCRIPT` || `grep -q $'\t'"$default=$" $MONGERSCRIPT` || `grep -q $'\t'"$default$" $MONGERSCRIPT`
+				then
+					edit_mongerscript PROJECT_INFO $default ${!default} $MONGERSCRIPT
+				fi
+			done
+			if ! `grep -q $'\tPAIRED' $MONGERSCRIPT` || `grep -q $'\tPAIRED=$' $MONGERSCRIPT` || `grep -q $'\tPAIRED$' $MONGERSCRIPT`
+			then
+				edit_mongerscript  INPUT_INFO PAIRED $PAIRED $MONGERSCRIPT
+			fi
+			parseMongerScript.pl \
+				-i $MONGERSCRIPT \
+				-a "PROJECT_INFO INPUT_INFO PROGRAM PROGRAM_ELEMENTS" \
+				-o /tmp/mongerinfo.tmp
+			. /tmp/mongerinfo.tmp
+			# rm -rf /tmp/mongerinfo.tmp
+		fi
+		if ! test -d $MODULE_DIR
+		then
+			echo -e "\nMONGER RUN ERROR: MongerModule directory $MONGER_DIR does not exist.\n"
+			exit 1
+		fi
+	else
+		program=$1
+	fi
+	shift
+fi
+while [ "$1" != "" ]
+do
+	case $1 in
+		-M | MODULE_DIR)
+			if ! `beginswith "-" $2`
+			then
+				shift
+				MODULE_DIR=$1
+				edit_mongerscript PROJECT_INFO MODULE_DIR $1 $MONGERSCRIPT
+			fi;;
+		-T | THREADS)
+			if ! `beginswith "-" $2`
+			then
+				shift
+				THREADS=$1
+				edit_mongerscript PROJECT_INFO THREADS $1 $MONGERSCRIPT
+			fi;;
+		-t | SUBTHREADS)
+			if ! `beginswith "-" $2`
+			then
+				shift
+				SUBTHREADS=$1
+				edit_mongerscript PROJECT_INFO SUBTHREADS $1 $MONGERSCRIPT
+			fi;;
+		-a | --args)
+			shift
+			args=$1;;
+		-o | --OUTPUT_DIRECTORY)
+			if ! `beginswith "-" $2`
+			then
+				shift
+				OUTPUT_DIRECTORY=$1
+				edit_mongerscript PROJECT_INFO OUTPUT_DIRECTORY $1 $MONGERSCRIPT
+			fi;;
+		-p | --PROJECT_NAME)		
+			shift
+			PROJECT_NAME=$1
+			edit_mongerscript PROJECT_INFO PROJECT_NAME $1 $MONGERSCRIPT;;
+		-b | --PHRED_BASE)
+			if ! `beginswith "-" $2`
+			then
+				shift
+				PHRED_BASE=$1
+				if [ "$PHRED_BASE" != "33" ] && [ "$PHRED_BASE" != "64" ]
+				then
+					echo -e "MONGER RUN WARNING: The phred-base argument (-b | --PHRED_BASE) you specified ($PHRED_BASE) is not valid (33|64). Treating as \"33\"..."
+					PHRED_BASE=33
+				fi
+				edit_mongerscript PROJECT_INFO PHRED_BASE $1 $MONGERSCRIPT
+			fi;;
+		-f | --SEQUENCING_FORMAT)
+			if ! `beginswith "-" $2`
+			then
+				shift
+				SEQUENCING_FORMAT="`echo $1 | tr "[A-Z]" "[a-z]"`"
+				if [ "$SEQUENCING_FORMAT" != "se" ] && [ "$SEQUENCING_FORMAT" != "pe" ] && [ "$SEQUENCING_FORMAT" != "mp" ]
+			then
+				echo -e "MONGER RUN WARNING: The sequencing format argument (-f | --SEQUENCING_FORMAT) you specified ($SEQUENCING_FORMAT) is not valid (se|pe|mp). Treating as \"se\"..."
+				SEQUENCING_FORMAT="se"
+			fi
+				edit_mongerscript PROJECT_INFO SEQUENCING_FORMAT $1 $MONGERSCRIPT
+			fi;;
+		-P | --PLOIDY)
+			if ! `beginswith "-" $2`
+			then
+				shift
+				PLOIDY=$1
+				edit_mongerscript PROJECT_INFO PLOIDY $1 $MONGERSCRIPT
+			fi;;
+		-Rf | --REFERENCE_FASTA)
+			if ! `beginswith "-" $2`
+			then
+				shift
+				REFERENCE_FASTA=$1
+				edit_mongerscript PROJECT_INFO REFERENCE_FASTA $1 $MONGERSCRIPT
+			fi;;
+		-Rg | --REFERENCE_GFF)
+			if ! `beginswith "-" $2`
+			then
+				shift
+				REFERENCE_GFF=$1
+				edit_mongerscript PROJECT_INFO REFERENCE_GFF $1 $MONGERSCRIPT
+			fi;;
+		-F | --FORCE)
+			while [ ! `beginswith "-" $2` ] && [ "$2" != "" ]
+			do
+				shift
+				FORCE="$FORCE $1"
+			done
+			edit_mongerscript PROJECT_INFOFORCE "$1" $MONGERSCRIPT;;
+		-i | --INPUTS)	
+			while [ ! `beginswith "-" $2` ] && [ "$2" != "" ]
+			do
+				shift
+				INPUTS="$INPUTS $1"
+			done
+			edit_mongerscript INPUT_INFO INPUTS "$1" $MONGERSCRIPT;;		
+		-I | --INPUTS_LIST)	
+			while [ ! `beginswith "-" $2` ] && [ "$2" != "" ]
+			do
+				shift
+				INPUTS_LIST="$INPUTS_LIST $1"
+			done
+			edit_mongerscript INPUT_INFO INPUTS_LIST "$1" $MONGERSCRIPT;;
+		-x | --PAIRED)
+			if ! `beginswith "-" $2`
+			then
+				shift
+				PAIRED=$1
+				edit_mongerscript INPUT_INFO PAIRED "$1" $MONGERSCRIPT
+			fi;;
+		-r | --RUN_PROGRAM)
+			if ! `beginswith "-" $2`
+			then
+				shift
+				RUN_PROGRAM=$1
+				edit_mongerscript PROGRAM RUN_PROGRAM "$1" $MONGERSCRIPT
+			fi;;
+		-h | --help)	
+			help=true;;
+		*)				
+			echo -e $usage
+			exit 1;;			
+	esac
+	shift
+done
+
+# Check inputs #
+if [ "$MONGERSCRIPT" == "" ]
+then
+	if [ "$program" != "" ]
+	then
+		if ! test -d $MODULE_DIR
+		then
+			echo -e "\nMONGER RUN ERROR: MongerModule directory $MODULE_DIR does not exist.\n"
+			exit 1
+		fi
+		if `echo $program | grep -qv "./."`
+		then
+			module=`find $MODULE_DIR -maxdepth 4 -name "$program"`
+		fi
+		if [ "$module" == "" ]
+		then
+			echo -e "\nMONGER RUN ERROR: Could not find the MongerModule \"$program\" in $MODULE_DIR. If this is a MongerScript, it needs to start with \"#mongerscript\".\n"
+			exit 1
+		else
+			input_helptest="$INPUTS $INPUTS_LIST"
+			if [ "$help" == "true" ] || [ "$input_helptest" == " " ]
+			then
+				$module -h
+			fi
+			RUN_PROGRAM=$program
+		fi
+	fi
+fi	
+MAIN_DIR=$OUTPUT_DIRECTORY/$PROJECT_NAME
+
+mkdir -p $MAIN_DIR
+if ! test -d $MAIN_DIR
+then
+	echo -e "MONGER RUN ERROR: Could not find or create output directory $MAIN_DIR."
+	exit 1
+fi
+rm -rf $MAIN_DIR/input_files.txt
+
+if [ "$INPUTS" != "" ]
+then
+	for input in $INPUTS
+	do
+		new_inputs=`parse_inputs $input`
+		inputs="$inputs $new_inputs"
+	done
+	if [ "`echo $SEQUENCING_FORMAT | tr "[A-Z]" "[a-z]"`" == "pe" ] || [ "`echo $SEQUENCING_FORMAT | tr "[A-Z]" "[a-z]"`" == "mp" ]
+	then
+		findpairs.pl -p $PAIRED -o $MAIN_DIR/input_files.txt -i "$inputs"
+	else
+		for input in $inputs
+		do
+			filename=$(basename "$input")
+			name="${filename%.*}"
+			echo -e "$input\t-\t-\t$name" >> $MAIN_DIR/input_files.txt
+		done
+	fi
+fi
+
+
+if [ "$INPUTS_LIST" != "" ]
+then
+	for list in $INPUTS_LIST
+	do
+		if ! test -f $list
+		then
+			echo -e "MONGER RUN ERROR: Could not find input list file $1"
+			exit 1
+		else
+			cat $list >> $MAIN_DIR/input_files.txt
+		fi
+	done
+fi
+
+if [ `wc -w $MAIN_DIR/input_files.txt | cut -d" " -f1` -eq 0 ]
+then
+	echo -e "MONGER RUN ERROR: No input files detected."
+	exit 1
+fi
+
+if [ "$RUN_PROGRAM" == "" ]
+then
+	echo -e "\nMONGER RUN ERROR: Could not figure out what to do with the inputs.\n"
+	exit 1
+fi
+
+if [ "$MONGERSCRIPT" == "" ]
+then
+	MONGERSCRIPT=$MAIN_DIR/mongerscript.txt
+	echo -e "PROJECT_INFO:\n\
+[\n\
+\tOUTPUT_DIRECTORY=$OUTPUT_DIRECTORY\n\
+\tPROJECT_NAME=$PROJECT_NAME\n\
+\tPHRED_BASE=$PHRED_BASE\n\
+\tSEQUENCING_PLATFORM=$SEQUENCING_PLATFORM\n\
+\tTHREADS=$THREADS\n\
+\tSEQUENCING_FORMAT=$SEQUENCING_FORMAT\n\
+\tPLOIDY=$PLOIDY\n\
+\tREFERENCE_FASTA=$REFERENCE_FASTA\n\
+\tREFERENCE_GFF=$REFERENCE_GFF\n\
+\tMODULE_DIR=$MODULE_DIR\n\
+\tFORCE=$FORCE\n\
+]\n\
+INPUT_INFO:\n\
+[\n\
+\tINPUTS_LIST=$MAIN_DIR/input_files.txt\n\
+]\n\
+PROGRAM:\n\
+[\n\
+\tRUN_PROGRAM=\"$RUN_PROGRAM\"\n\
+]\n\
+PROGRAM_ELEMENTS:\n\
+[\n\
+]\n\
+MODULE_ARGS:\n\
+[
+\t$RUN_PROGRAM-modargs=$args\n\
+]"\
+> $MONGERSCRIPT
+else
+	cp $MONGERSCRIPT $MAIN_DIR/mongerscript.txt
+	MONGERSCRIPT=$MAIN_DIR/mongerscript.txt
+fi
+
+####################################
+######### RUN MONGERSCRIPT  ########
+####################################
+
+# while read input_line
+# do
+# 	echo $input_line > $MAIN_DIR/current_input.txt
+# 	run_mongerscript $MAIN_DIR/current_input.txt $MONGERSCRIPT
+# done < $MAIN_DIR/input_files.txt
+
+index=1
+while read input_line
+do
+	echo $input_line > $MAIN_DIR/current_input.$index.txt
+	input_files="$input_files $MAIN_DIR/current_input.$index.txt"
+	index=`expr $index + 1`
+done < $MAIN_DIR/input_files.txt
+
+
+jobnum=`expr $THREADS \/ $SUBTHREADS`
+inputnum=`echo $inputs | wc -w`
+if [ $jobnum -eq 0 ]
+then
+	jobnum=1
+elif [ $jobnum -gt $inputnum ]
+then
+	jobnum=$inputnum
+fi
+
+# echo -e "parallel -j $jobnum -k run_mongerscript \n::: $input_files \n::: $MONGERSCRIPT"
+parallel -j $jobnum -k run_mongerscript ::: $input_files ::: $MONGERSCRIPT
+
+

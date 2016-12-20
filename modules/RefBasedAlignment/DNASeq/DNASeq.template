@@ -1,0 +1,545 @@
+#!/usr/bin/env bash
+#define MAX_ARG_PAGES 32
+set -e
+export SHELL=$(type -p bash)
+freemem=`free | awk '{print $4}'`
+freemem=`echo $freemem | cut -d' ' -f4`
+MEMLIMIT=`expr $freemem \/ 4 \* 3`
+export _JAVA_OPTIONS=-Xmx2g
+###############################################
+MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`
+module_name=`basename "$0" | tr "[A-Z]" "[a-z]"`
+function beginswith { 
+	case $2 in 
+		"$1"*) true;; 
+		*) false;; 
+	esac
+}
+###############################################
+###################
+### MODULE INFO ###
+###################
+DESCRIPTION=
+WEBSITE=
+CITATIONS=
+MODULE_AUTHOR=
+YEAR_WRITTEN=
+###############################################
+MODULE_INFO="DESCRIPTION:\n$DESCRIPTION\nWEBSITE:\n$WEBSITE\nCITATION:\n$CITATION"
+AUTHOR_INFO="$MODULE_AUTHOR $YEAR_WRITTEN"
+
+function mongerinstall {
+	MODULE_NAME=$1
+	shift
+	MODULE_INFO=$1
+	shift
+	AUTHOR_INFO=$1
+	shift
+	module_name=`echo $MODULE_NAME | tr "[A-Z]" "[a-z]"`
+	SUBTHREADS=1
+	####################################
+	############ USAGE #################
+	####################################
+	usage="SYNOPSIS:\nmonger run $module_name\n$MODULE_INFO\n\
+OPTIONS:\n\
+  -i | --install_dir [DIR]\tInstallation directory [/usr/local/]\n\
+  -f | --force\t\t\tOverwrite existing program executables.\n\	
+  -h | --help\t\t\tPrint help message\n\n\
+AUTHOR:\n\
+$AUTHOR_INFO"
+
+	####################################
+	######## INPUT PROCESSING ##########
+	####################################
+	INSTALL_DIR=/usr/local
+	FORCE=FALSE
+	while [ "$1" != "" ]
+	do
+		case $1 in
+			-i | --install_dir)	
+				shift
+				INSTALL_DIR=$1;;
+			-f | --force)
+				FORCE=TRUE;;
+			-h | --help)
+				echo -e $usage
+				exit 1;;
+			*)	
+				echo -e "\nMONGER RUN $MODULE_NAME ERROR: $1 is not a valid option.\n$usage"
+				exit 1				
+		esac
+		shift
+	done
+
+	####################################
+
+	PATH_SEP=`echo $PATH | sed 's|:| |g'`
+	LD_LIBRARY_PATH_SEP=`echo $LD_LIBRARY_PATH | sed 's|:| |g'`
+	INCLUDE_SEP=`echo $INCLUDE | sed 's|:| |g'`
+
+	cur_dir=`pwd`
+	DOWNLOAD_DIR=$INSTALL_DIR/soft
+	mkdir -p $DOWNLOAD_DIR
+
+	####################################
+	####### INSTALL DEPENDENCIES #######
+	####################################
+
+	###############################################
+
+	####################################
+	####### INSTALL MAIN PROGRAM #######
+	####################################
+
+	########
+	# XXXX #
+	########
+	if ! type "bwa" >/dev/null 2>/dev/null || [ $FORCE == "TRUE" ]
+	then
+		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
+		cd $DOWNLOAD_DIR
+		##############################
+		
+		##############################
+	else
+		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
+	fi
+
+}
+function run {
+	MODULE_NAME=$1
+	shift
+	MODULE_INFO=$1
+	shift
+	AUTHOR_INFO=$1
+	shift
+	module_name=`echo $MODULE_NAME | tr "[A-Z]" "[a-z]"`
+	SUBTHREADS=1
+	####################################
+	########### FUNCTIONS ##############
+	####################################
+
+	function time_elapsed {
+		end_time=`date +%s`
+		elapsed_secs=`expr $end_time - $1`
+		date -u -d @${elapsed_secs} +"%T"
+	}
+	
+	####################################
+	############ USAGE #################
+	####################################
+	usage="SYNOPSIS:\nmonger run $module_name\n$MODULE_INFO\n\
+OPTIONS:\n\
+  -1 | --input1\t[FILE]\tFASTQ input to evaluate.\n\
+  -2 | --input2\t[FILE]\tFASTQ input (if paired-end)\n\
+  -3 | --input3\t[FILE]\tUnpaired FASTQ reads\n\
+  -n | --name\t[STR]\tSample name (basename of outputs)\n\
+  -o | --outdir\t[DIR]\tOutput directory\n\
+  -t | --threads\n\
+  -A | --args\t[STR]\tArguments specified as variables in a bash file.\n\
+  -f | --force\t\t\tOverwrite existing files.\n\
+  -L | --read_length\t[INT]\tRead lengths(bps) [100]\n\
+  -I | --insert_size\t[INT]\tEstimated insert size if paired-end or mate-paired (bps) [250]\n\
+  -S | --insert_sd\t[INT]\tEstimated standard deviation of insert size (bps) [100]\n\
+  -s | --sort\t[c|n]\tSort outputs by alignment coordinate (c) or read name (n) [c]\n\
+  -O | --output_format\t[bam|sam]\tOutput format for alignments [bam]\n\
+  -m | --merge\t\t\tMerge alignments from input paired reads and unpaired reads if program cannot process both together [FALSE]\n\
+  -h | --help\t\t\tPrint help message\n\n\
+AUTHOR:\n\
+$AUTHOR_INFO"
+
+	####################################
+	######## INPUT PROCESSING ##########
+	####################################
+	FORCE=FALSE
+	if [ $# -eq 0 ]
+	then
+		echo -e $usage
+		exit 1
+	fi
+
+	#################
+	# Program specific defaults
+	read_length=100
+	insert_size=250
+	insert_sd=100
+	output_format=bam
+	merge=false
+	
+	#################
+	while [ "$1" != "" ]
+	do
+		case $1 in
+			-1 | --input1)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					if ! test -f $1
+					then
+						echo -e "\nMONGER RUN $MODULE_NAME ERROR: Cannot find input file $1."
+						exit 1
+					else
+						in1=$1
+					fi
+				fi;;
+			-2 | --input2)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					if ! test -f $1
+					then
+						echo -e "\nMONGER RUN $MODULE_NAME WARNING: Cannot find input file $1. Skipping...\n"
+					else
+						in2="$1"
+					fi
+				fi;;
+			-3 | --input3)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					if ! test -f $1
+					then
+						echo -e "\nMONGER RUN $MODULE_NAME WARNING: Cannot find input file $1. Skipping...\n"
+					else
+						in3="$1"
+					fi
+				fi;;
+			-I | --input_list)
+				if ! `beginswith "-" "$2"`
+					then
+						shift
+						if ! test -f $1
+						then
+							echo -e "\nMONGER RUN $MODULE_NAME ERROR: Cannot find input file list $1.\n"
+							exit 1
+						else
+							input_list=$1
+							field_num=`awk '{print NF}' $input_list`
+							name=`awk -v last_field="$field_num" '{print $lastfield}' $input_list`
+							index=1
+							while [ $index -lt $field_num ]
+							do
+								input=`awk -v field="$index" '{print $field}' $input_list`
+								if ! test -f "$input"
+								then
+									echo -e "\nMONGER RUN $MODULE_NAME WARNING: Cannot find input file $input. Skipping...\n"
+								else
+									inputs="$inputs $input"
+									declare "in$index=$input"
+								fi
+								index=$(($index + 1))
+							done
+						fi
+					fi;;	
+			-n | --name)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					name=$1
+				fi;;
+			-o | --outdir)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					outdir=$1
+					mkdir -p $outdir
+					if ! test -d $outdir
+					then
+						echo -e "\nMONGER RUN $MODULE_NAME ERROR: Could not find or create output directory $outdir.\n"
+						exit 1
+					fi
+				fi;;
+			-t | --threads)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					SUBTHREADS=$1
+				fi;;
+			-A | --args)
+				shift
+				. $1;;
+			-f | --force)
+				force=true;;
+			# -m | --maxmem)
+			# 	shift
+			# 	maxmem=$1
+			# 	export _JAVA_OPTIONS=-Xmx$maxmem;;
+			# 	# ulimit -v $maxmem;;
+			-h | --help)
+				echo -e $usage
+				exit 1;;
+			*)
+				echo -e "\nMONGER RUN $MODULE_NAME ERROR: $1 is not a valid option.\n$usage"
+				exit 1;;
+			# Align specific args
+			-L | --read_length)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					read_length=$1
+				fi;;
+			-I | --insert_size)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					insert_size=$1
+				fi;;
+			-S | --insert_sd)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					insert_sd=$1
+				fi;;
+			-s | --sort)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					temp=`echo "$1" | tr '[A-Z]' '[a-z]'`
+					if [ "$temp" == "c" ] || [ "$temp" == "n" ]
+					then
+						sort=$temp
+					else
+						echo -e "MONGER RUN $MODULE_NAME WARNING: Sort method must be either by alignment coordinate (c) or by read name (n). Using default \"c\"."
+						sort="c"
+					fi
+				fi;;
+			-O | --output_format)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					temp=`echo "$1" | tr '[A-Z]' '[a-z]'`
+					if [ "$temp" == "bam" ] || "$temp" == "sam"
+					then
+						output_format=$temp
+					else
+						echo -e "MONGER RUN $MODULE_NAME WARNING: Output format must be either \"bam\" or \"sam\". Using default \"bam\"."
+					fi
+				fi;;
+			-m | --merge)
+				merge=true;;
+		esac
+		shift
+	done
+	if ! test -f "$REFERENCE_FASTA"
+	then
+		echo -e "\nMONGER RUN $MODULE_NAME ERROR: Cannot find reference file \"$REFERENCE_FASTA\"."
+		exit 1
+	fi
+	
+	if [ "$name" == "" ]
+	then
+		name=`echo $inputs | cut -d' ' -f1 | basename`
+		name="${name%.*}"
+	fi
+	mkdir -p $outdir/logs
+	mkdir -p $outdir/resume
+	mkdir -p $outdir/program_logs
+	log_file=$outdir/logs/$name.log.txt
+	resume_file=$outdir/resume/$name.resume.txt
+	program_log_file=$outdir/program_logs/$name.program_log.txt
+	
+	echo -e "$MODULE_NAME" > $log_file
+	if ! test -f $resume_file || [ "$force" == "true" ]
+	then
+		echo "$MODULE_NAME" > $resume_file
+	fi
+
+	if ! type "samtools" >/dev/null 2>/dev/null 
+	then
+		monger install samtools
+	else
+		samtools --version > /tmp/samtoolsversion.txt 2>&1
+		if ! `grep -q "samtools 1.3" /tmp/samtoolsversion.txt`
+		then
+			monger install samtools
+		fi
+	fi
+	if ! test -f $REFERENCE_FASTA.fai
+	then
+		samtools faidx $REFERENCE_FASTA
+	fi
+	mkdir -p $outdir/intermediates
+	####################################
+	########## MAIN PROGRAM ############
+	####################################
+	if test -f "$in2"
+	then
+		ended="PE"
+	else
+		ended="SE"
+	fi
+	for part in $in1 $in2 $in3
+	do
+		part_base=`basename $part`
+		current_basenames="$current_basenames $part_base"
+	done
+	combined_names=`echo $current_basenames | tr " " "_"`
+	echo -e " INPUT:$combined_names.$ended" >> $outdir/log.txt
+	# PROGRAM
+	##############################
+	STEP_NAME="xxxx"
+	if [ "`grep "$STEP_NAME.$combined_names=complete" $outdir/resume.txt`" == "" ] || [ "$force" == "true" ]
+	then
+		# Process start time
+		start=`date +%s`
+		echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for $combined_names."
+		echo -e "$STEP_NAME:" >> $outdir/program_log.txt
+		#####################################################################################
+		# Make sure program is installed
+		if ! type "xxx" >/dev/null 2>/dev/null 
+		then
+			monger install $MODULE_NAME
+		fi
+		# Make reference indices
+		if ! test -f $REFERENCE_FASTA.xxx
+		then
+			xxxxx index
+		fi
+		# Construct program arguments if not provided in mongerscript
+		# Define how program takes in inputs
+		program_inputs=$in1
+		if [ "$ended" == "PE" ]
+		then
+			program_inputs="$program_inputs $in2"
+		fi
+		# Program command
+		XXXX \
+			THREADS=$SUBTHREADS \
+			INPUTS=$program_inputs \
+			OUTPUT=$outdir/$name.$ended.$STEP_NAME.sam \
+			REFERENCE=$REFERENCE_FASTA \
+			$xxx_args \
+			>> $outdir/program_log.txt 2>&1
+		if test -f "$in3"
+		then
+			XXXX \
+				THREADS=$SUBTHREADS \
+				INPUTS=$in3 \
+				OUTPUT=$outdir/$name.$ended.unpaired.$STEP_NAME.sam \
+				REFERENCE=$REFERENCE_FASTA \
+				$xxx_args \
+				> $outdir/program_log.txt
+		fi
+		#####################################################################################
+		if [ "$merge" == "true" ] && test -f "$outdir/$name.$ended.unpaired.$STEP_NAME.sam"
+		then
+			samtools sort \
+				-@ $SUBTHREADS \
+				-o $outdir/intermediates/$name.$ended.sort.$STEP_NAME.bam \
+				$outdir/$name.$ended.$STEP_NAME.sam \
+				>> $outdir/program_log.txt 2>&1
+			samtools sort \
+				-@ $SUBTHREADS \
+				-o $outdir/intermediates/$name.$ended.unpaired.sort.$STEP_NAME.bam \
+				$outdir/$name.$ended.unpaired.$STEP_NAME.sam \
+				>> $outdir/program_log.txt 2>&1
+			samtools merge -f \
+				$outdir/intermediates/$name.$ended.merge.tmp.$STEP_NAME.bam \
+				$outdir/intermediates/$name.$ended.sort.$STEP_NAME.bam \
+				$outdir/intermediates/$name.$ended.unpaired.sort.$STEP_NAME.bam \
+				>> $outdir/program_log.txt 2>&1
+			mv $outdir/$name.$ended.$STEP_NAME.sam $outdir/intermediates/
+			mv $outdir/$name.$ended.unpaired.$STEP_NAME.sam $outdir/intermediates/
+			samtools view -h \
+				-@ $SUBTHREADS \
+				$outdir/intermediates/$name.$ended.merge.tmp.$STEP_NAME.bam \
+				1> $outdir/$name.$ended.$STEP_NAME.sam 2>> $outdir/program_log.txt
+		fi
+		#####################################################################################
+		main_output=$outdir/$name.$ended.$STEP_NAME.sam
+		unpaired_output=$outdir/$name.$ended.unpaired.$STEP_NAME.sam
+		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for $combined_names complete."
+		#################
+		elapsed=`time_elapsed $start`
+		echo -e "  $STEP_NAME=$elapsed" >> $outdir/log.txt
+		echo "$STEP_NAME.$combined_names=complete" >> $outdir/resume.txt
+	else
+		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" complete for file $combined_names. Skipping..."
+		main_output=$outdir/$name.$ended.$STEP_NAME.sam
+		unpaired_output=$outdir/$name.$ended.unpaired.$STEP_NAME.sam
+	fi
+	##############################
+	STEP_NAME="sort_alignments"
+	if [ "sort" != "" ]
+	then
+		if [ "`grep "$STEP_NAME.$combined_names=complete" $outdir/resume.txt`" == "" ] || [ "$force" == "true" ]
+		then
+			# Process start time
+			start=`date +%s`
+			echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for $combined_names."
+			echo -e "$STEP_NAME:" >> $outdir/program_log.txt
+			#####################################################################################
+			if [ "sort" == "n" ]
+			then
+				in_sort="-$sort"
+			fi
+			samtools sort \
+				$insort \
+				-@ $SUBTHREADS \
+				-o $outdir/$name.$ended.$output_format \
+				$main_output \
+				2>> $outdir/program_log.txt
+			if [ "$output_format" == "bam" ]
+			then
+				samtools index $outdir/$name.$ended.$output_format
+			fi
+			mv $main_output $outdir/intermediates/
+			if test -f "$unpaired_output"
+			then
+				samtools sort \
+					$sort \
+					-@ $SUBTHREADS \
+					-o $outdir/$name.$ended.unpaired.$output_format \
+					$unpaired_output \
+					2>> $outdir/program_log.txt
+				if [ "$output_format" == "bam" ]
+				then
+					samtools index $outdir/$name.$ended.unpaired.$output_format
+				fi
+				mv $unpaired_output $outdir/intermediates/
+			fi
+			#####################################################################################
+			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for $combined_names complete."
+			main_output=$outdir/$name.$ended.$output_format
+			if test -f "$outdir/$name.$ended.unpaired.$output_format"
+			then
+				unpaired_output=$outdir/$name.$ended.unpaired.$output_format
+			else
+				unpaired_output="-"
+			fi
+			#################
+			elapsed=`time_elapsed $start`
+			echo -e "  $STEP_NAME=$elapsed" >> $outdir/log.txt
+			echo "$STEP_NAME.$combined_names=complete" >> $outdir/resume.txt
+		else
+			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" complete for file $combined_names. Skipping..."
+			main_output=$outdir/$name.$ended.$output_format
+			if test -f "$outdir/$name.$ended.unpaired.$output_format"
+			then
+				unpaired_output=$outdir/$name.$ended.unpaired.$output_format
+			else
+				unpaired_output="-"
+			fi
+		fi
+	fi
+	#####################################################################################
+	# Record output info for downstream modules
+	echo -e "$main_output\t-\t$unpaired_output\t$name" >  $outdir/$name.outputs.txt
+	echo -e "MONGER RUN $MODULE_NAME: Complete."
+}
+
+############################################################
+if [ "$1" == "run" ]
+then
+	shift
+	run "$MODULE_NAME" "$MODULE_INFO" "$AUTHOR_INFO" $*
+elif [ "$1" == "install" ]
+then
+	shift
+	mongerinstall "$MODULE_NAME" "$MODULE_INFO" "$AUTHOR_INFO" $*
+else
+	echo -e \
+"SYNOPSIS:\n\
+monger [run|install] $module_name\n$MODULE_INFO\n$AUTHOR_INFO"
+	exit 1
+fi

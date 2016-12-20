@@ -1,0 +1,304 @@
+#!/usr/bin/env bash
+#define MAX_ARG_PAGES 32
+set -e
+export SHELL=$(type -p bash)
+. ~/.bashrc
+# freemem=`free | awk '{print $4}'`
+# freemem=`echo $freemem | cut -d' ' -f4`
+# MEMLIMIT=`expr $freemem \/ 4 \* 3`
+###############################################
+MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`
+function beginswith { 
+	case $2 in 
+		"$1"*) true;; 
+		*) false;; 
+	esac
+}
+###############################################
+
+function mongerinstall {
+	####################################
+	############ USAGE #################
+	####################################
+	usage=\
+"SYNOPSIS:\n\
+monger install r\n\n\
+DESCRIPTION:\n\
+Installer for R and its dependencies.\n\n\
+R DESCRIPTION:\n\
+R is a free software environment for statistical computing and graphics.\n\
+WEBSITE:\n\
+https://www.r-project.org/\n\n\
+CITATION:\n\
+OPTIONS:\n\
+  -i | --install_dir [DIR]\tInstallation directory [/usr/local/]\n\
+  -f | --force\t\t\tOverwrite existing program executables.\n\
+  -h | --help\t\t\tPrint help message\n\n\
+AUTHOR:\n\
+Noah Gettle 2016"
+  
+	####################################
+	######## INPUT PROCESSING ##########
+	####################################
+	MODULE_NAME=$1
+	shift
+	INSTALL_DIR=/usr/local
+	FORCE=FALSE
+	while [ "$1" != "" ]
+	do
+		case $1 in
+			-i | --install_dir)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					INSTALL_DIR=$1
+				fi;;
+			-f | --force)	FORCE=TRUE;;
+			-h | --help)	echo -e $usage
+							exit 1;;
+			*)				echo -e "MONGER INSTALL $MODULE_NAME ERROR: \"$1\" not recognized as a valid option."
+							exit 1						
+		esac
+		shift
+	done
+
+	####################################
+	
+	PATH_SEP_TMP=`echo $PATH | sed 's|:| |g'`
+	for path in $PATH_SEP_TMP
+	do
+		if test -d "$path"
+		then
+			PATH_SEP="$PATH_SEP $path"
+		fi
+	done
+	LD_LIBRARY_PATH_SEP=`echo $LD_LIBRARY_PATH | sed 's|:| |g'`
+	INCLUDE_SEP=`echo $INCLUDE | sed 's|:| |g'`
+
+	cur_dir=`pwd`
+	DOWNLOAD_DIR=$INSTALL_DIR/soft
+	mkdir -p $DOWNLOAD_DIR
+
+	###############################################
+
+	####################################
+	###### INSTALL DEPENDENCIES ########
+	####################################
+
+	########
+	# ZLIB #
+	########
+	libzsofile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libz.so' | head -1`
+	libzafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libz.a'`
+	zlibpcfile=`find $LD_LIBRARY_PATH_SEP -maxdepth 2 -name 'zlib.pc'`
+	zlibhfile=`find $INCLUDE_SEP -maxdepth 1 -name 'zlib.h'`
+	if [ "$libzsofile" == "" ] || [ "$libzafile" == "" ] || [ "$zlibpcfile" == "" ] || [ "$zlibhfile" == "" ]
+	then
+		echo -e "> MONGER INSTALL: Installing ZLIB."
+		cd $DOWNLOAD_DIR
+		wget http://zlib.net/zlib-1.2.8.tar.gz
+		tar -zxvf $DOWNLOAD_DIR/zlib-1.2.8.tar.gz
+		cd $DOWNLOAD_DIR/zlib-1.2.8
+		./configure --prefix=$INSTALL_DIR
+		make
+		make install
+		rm -f $DOWNLOAD_DIR/zlib-1.2.8.tar.gz
+		ZLIB_DIR=$INSTALL_DIR
+	else
+		ZLIB_DIR=`dirname $libzsofile`
+		ZLIB_DIR=`dirname $ZLIB_DIR`
+	fi
+
+	if [[ "$LDFLAGS" != *"-L$ZLIB_DIR/lib"* ]]
+	then
+		export LDFLAGS="$LDFLAGS -L$ZLIB_DIR/lib"
+	fi
+	if [[ "$CFLAGS" != *"-I$ZLIB_DIR/include"* ]]
+	then
+		export CFLAGS="$CFLAGS -I$ZLIB_DIR/include"
+	fi
+
+	########
+	# BZIP #
+	########
+	bzipfile=`find $INCLUDE_SEP -maxdepth 1 -name 'bzlib.h' | head -1`
+	if [ "$bzipfile" == "" ]
+	then
+		echo -e "> $CURRENT_SCRIPT: Installing BZIP2."
+		cd $DOWNLOAD_DIR
+		wget http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz
+		tar -zxvf $DOWNLOAD_DIR/bzip2-1.0.6.tar.gz
+		cd $DOWNLOAD_DIR/bzip2-1.0.6
+		make
+		make install PREFIX=$INSTALL_DIR
+		rm -f $DOWNLOAD_DIR/bzip2-1.0.6.tar.gz
+		BZIP_DIR=$INSTALL_DIR
+	else
+		BZIP_DIR=`dirname $bzipfile`
+		BZIP_DIR=`dirname $BZIP_DIR`
+	fi
+
+	if [[ "$LDFLAGS" != *"-L$BZIP2_DIR/lib"* ]]
+	then
+		export LDFLAGS="$LDFLAGS -L$BZIP_DIR/lib"
+	fi
+	if [[ "$CFLAGS" != *"-I$BZIP_DIR/include"* ]]
+	then
+		export CFLAGS="$CFLAGS -I$BZIP_DIR/include"
+	fi
+
+	###########
+	# LIBLZMA #
+	###########
+	liblzmasofile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'liblzma.so' | head -1`
+	liblzmaafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'liblzma.a'`
+	liblzmapcfile=`find $LD_LIBRARY_PATH_SEP -maxdepth 2 -name 'liblzma.pc'`
+	liblzmahfile=`find $INCLUDE_SEP -maxdepth 1 -name 'lzma.h'`
+	liblzmadirfile=`find $INCLUDE_SEP -maxdepth 1 -name 'lzma'`
+	if [ "$liblzmasofile" == "" ] || [ "$liblzmaafile" == "" ] || [ "$liblzmapcfile" == "" ] || [ "$liblzmahfile" == "" ] || [ "$liblzmadirfile" == "" ]
+	then
+		echo -e "> $CURRENT_SCRIPT : Installing LIBLZMA."
+		cd $DOWNLOAD_DIR
+		rm -rf $DOWNLOAD_DIR/liblzma
+		git clone https://github.com/kobolabs/liblzma
+		cd $DOWNLOAD_DIR/liblzma
+		./configure prefix=$INSTALL_DIR
+		make
+		make install
+		LIBLZMA_DIR=$INSTALL_DIR
+	else
+		LIBLZMA_DIR=`dirname $liblzmasofile`
+		LIBLZMA_DIR=`dirname $LIBLZMA_DIR`
+	fi
+
+	if [[ "$LDFLAGS" != *"-L$LIBLZMA_DIR/lib"* ]]
+	then
+		export LDFLAGS="$LDFLAGS -L$LIBLZMA_DIR/lib"
+	fi
+	if [[ "$CFLAGS" != *"-I$LIBLZMA_DIR/include"* ]]
+	then
+		export CFLAGS="$CFLAGS -I$LIBLZMA_DIR/include"
+	fi
+
+	########
+	# PCRE #
+	########
+	pcresofile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libpcre.so' | head -1`
+	pcreafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libpcre.a'`
+	pcrepcfile=`find $LD_LIBRARY_PATH_SEP -maxdepth 2 -name 'libpcre.pc'`
+	pcrecppsofile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libpcrecpp.so'`
+	pcrecppafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libpcrecpp.a'`
+	pcrecpppcfile=`find $LD_LIBRARY_PATH_SEP -maxdepth 2 -name 'libpcrecpp.pc'`
+	pcreposixsofile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libpcreposix.so'`
+	pcreposixafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libpcreposix.a'`
+	pcreposixpcfile=`find $LD_LIBRARY_PATH_SEP -maxdepth 2 -name 'libpcreposix.pc'`
+	pcrehfile=`find $INCLUDE_SEP -maxdepth 1 -name 'pcre.h'`
+	pcrecpphfile=`find $INCLUDE_SEP -maxdepth 1 -name 'pcrecpp.h'`
+	pcreposixhfile=`find $INCLUDE_SEP -maxdepth 1 -name 'pcreposix.h'`
+	if [ "$pcresofile" == "" ] || [ "$pcreafile" == "" ] || [ "$pcrepcfile" == "" ] \
+		|| [ "$pcrecppsofile" == "" ] || [ "$pcrecppafile" == "" ] || [ "$pcrecpppcfile" == "" ] \
+		|| [ "$pcreposixsofile" == "" ] || [ "$pcreposixafile" == "" ] || [ "$pcreposixpcfile" == "" ] \
+		|| [ "$pcrehfile" == "" ] || [ "$pcrecpphfile" == "" ] || [ "$pcreposixhfile" == "" ]
+	then
+		echo -e "> $CURRENT_SCRIPT : Installing PCRE."
+		cd $DOWNLOAD_DIR
+		wget ftp://ftp.csx.cam.ac.uk/pub/software/programming/pcre/pcre-8.39.tar.gz
+		tar -zxvf $DOWNLOAD_DIR/pcre-8.39.tar.gz
+		cd $DOWNLOAD_DIR/pcre-8.39
+		./configure --prefix=$INSTALL_DIR --enable-utf8 --enable-unicode-properties
+		make
+		make install
+		rm $DOWNLOAD_DIR/pcre-8.39.tar.gz
+		PCRE_DIR=$INSTALL_DIR
+	else
+		PCRE_DIR=`dirname $pcrehfile`
+		PCRE_DIR=`dirname $PCRE_DIR`
+	fi
+
+	if [[ "$LDFLAGS" != *"-L$PCRE_DIR/lib"* ]]
+	then
+		export LDFLAGS="$LDFLAGS -L$PCRE_DIR/lib"
+	fi
+	if [[ "$CFLAGS" != *"-I$PCRE_DIR/include"* ]]
+	then
+		export CFLAGS="$CFLAGS -I$PCRE_DIR/include"
+		export CPPFLAGS="$CPPFLAGS -I$PCRE_DIR/include"
+	fi
+
+	########
+	# CURL #
+	########
+	if type "curl" > /dev/null 2>/dev/null
+	then
+		curlversion=`curl --version | head -1 | cut -d' ' -f2 | cut -d'.' -f1,2`
+	else
+		curlversion=0
+	fi
+	if [ `echo $curlversion'>='7.28 | bc -l` == 0 ]
+	then		 
+		echo -e "> $CURRENT_SCRIPT : Installing CURL."
+		cd $DOWNLOAD_DIR
+		wget https://curl.haxx.se/download/curl-7.49.1.tar.gz
+		tar -zxvf $DOWNLOAD_DIR/curl-7.49.1.tar.gz
+		cd $DOWNLOAD_DIR/curl-7.49.1
+		./configure prefix=$INSTALL_DIR
+		make
+		make install
+		rm $DOWNLOAD_DIR/curl-7.49.1.tar.gz
+		CURL_DIR=$INSTALL_DIR
+	else
+		curlfile=`find $PATH_SEP -maxdepth 1 -name 'curl' | head -1`
+		CURL_DIR=`dirname $curlfile`
+		CURL_DIR=`dirname $PCRE_DIR`
+	fi
+	if [[ "$LDFLAGS" != *"-L$CURL_DIR/lib"* ]]
+	then
+		export LDFLAGS="$LDFLAGS -L$CURL_DIR/lib"
+	fi
+	if [[ "$CFLAGS" != *"-I$CURL_DIR/include"* ]]
+	then
+		export CFLAGS="$CFLAGS -I$CURL_DIR/include"
+		export CPPFLAGS="$CPPFLAGS -I$CURL_DIR/include"
+	fi
+
+	###############################################
+
+	####################################
+	###### INSTALL MAIN PROGRAM ########
+	####################################
+
+	#####
+	# R #
+	#####
+	if ! type "Rscript" >/dev/null 2>/dev/null || [ "$FORCE" == "TRUE" ]
+	then
+		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
+		cd $DOWNLOAD_DIR
+		if ! test -f $DOWNLOAD_DIR/R-3.3.1.tar.gz*
+		then
+			wget http://ftp.ussg.iu.edu/CRAN/src/base/R-3/R-3.3.1.tar.gz
+		fi
+		tar -zxvf $DOWNLOAD_DIR/R-3.3.1.tar.gz
+		cd $DOWNLOAD_DIR/R-3.3.1
+		./configure --prefix=$INSTALL_DIR --with-x=no
+		make
+		make install
+		rm $DOWNLOAD_DIR/R-3.3.1.tar.gz*
+	else
+		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
+	fi
+}
+
+############################################################
+if [ "$1" == "run" ]
+then
+	shift
+	run $MODULE_NAME $*
+elif [ "$1" == "install" ]
+then
+	shift
+	mongerinstall $MODULE_NAME $*
+else
+	echo -e "MONGER $MODULE_NAME ERROR: You must specify either \"run\" or \"install\""
+	exit 1
+fi

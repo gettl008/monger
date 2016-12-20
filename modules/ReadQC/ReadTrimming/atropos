@@ -1,0 +1,633 @@
+#!/usr/bin/env bash
+#define MAX_ARG_PAGES 32
+set -e
+export SHELL=$(type -p bash)
+. ~/.bashrc
+freemem=`free | awk '{print $4}'`
+freemem=`echo $freemem | cut -d' ' -f4`
+MEMLIMIT=`expr $freemem \/ 4 \* 3`
+export _JAVA_OPTIONS=-Xmx2g
+###############################################
+MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`
+module_name=`basename "$0" | tr "[A-Z]" "[a-z]"`
+function beginswith { 
+	case $2 in 
+		"$1"*) true;; 
+		*) false;; 
+	esac
+}
+###############################################
+###################
+### MODULE INFO ###
+###################
+DESCRIPTION="Atropos is tool for specific, sensitive, and speedy trimming of NGS reads."
+WEBSITE="https://github.com/jdidion/atropos"
+CITATIONS="Didion, J. P., and F. S. Collins. 2016. Atropos : specific , sensitive , and speedy trimming of sequencing reads. PeerJ."
+MODULE_AUTHOR="Noah Gettle"
+YEAR_WRITTEN="2016"
+###############################################
+MODULE_INFO="DESCRIPTION:\n$DESCRIPTION\nWEBSITE:\n$WEBSITE\nCITATION:\n$CITATION"
+AUTHOR_INFO="$MODULE_AUTHOR $YEAR_WRITTEN"
+
+function mongerinstall {
+	MODULE_NAME=$1
+	shift
+	MODULE_INFO=$1
+	shift
+	AUTHOR_INFO=$1
+	shift
+	module_name=`echo $MODULE_NAME | tr "[A-Z]" "[a-z]"`
+	SUBTHREADS=1
+	####################################
+	############ USAGE #################
+	####################################
+	usage=\
+"SYNOPSIS:\nmonger install $module_name\n$MODULE_INFO\n\
+OPTIONS:\n\
+  -i | --install_dir [DIR]\tInstallation directory [/usr/local/]\n\
+  -f | --force\t\t\tOverwrite existing program executables.\n\	
+  -h | --help\t\t\tPrint help message\n\n\
+AUTHOR:\n\
+$AUTHOR_INFO"
+
+	####################################
+	######## INPUT PROCESSING ##########
+	####################################
+	INSTALL_DIR=/usr/local
+	FORCE=FALSE
+	while [ "$1" != "" ]
+	do
+		case $1 in
+			-i | --install_dir)	
+				shift
+				INSTALL_DIR=$1;;
+			-f | --force)
+				FORCE=TRUE;;
+			-h | --help)
+				echo -e $usage
+				exit 1;;
+			*)	
+				echo -e "\nMONGER RUN $MODULE_NAME ERROR: $1 is not a valid option.\n$usage"
+				exit 1				
+		esac
+		shift
+	done
+
+	####################################
+
+	PATH_SEP=`echo $PATH | sed 's|:| |g'`
+	LD_LIBRARY_PATH_SEP=`echo $LD_LIBRARY_PATH | sed 's|:| |g'`
+	INCLUDE_SEP=`echo $INCLUDE | sed 's|:| |g'`
+
+	cur_dir=`pwd`
+	DOWNLOAD_DIR=$INSTALL_DIR/soft
+	mkdir -p $DOWNLOAD_DIR
+
+	####################################
+	####### INSTALL DEPENDENCIES #######
+	####################################
+	
+	###########
+	# LIBLZMA #
+	###########
+	liblzmasofile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'liblzma.so' | head -1`
+	liblzmaafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'liblzma.a'`
+	liblzmapcfile=`find $LD_LIBRARY_PATH_SEP -maxdepth 2 -name 'liblzma.pc'`
+	liblzmahfile=`find $INCLUDE_SEP -maxdepth 1 -name 'lzma.h'`
+	liblzmadirfile=`find $INCLUDE_SEP -maxdepth 1 -name 'lzma'`
+	if [ "$liblzmasofile" == "" ] || [ "$liblzmaafile" == "" ] || [ "$liblzmapcfile" == "" ] || [ "$liblzmahfile" == "" ] || [ "$liblzmadirfile" == "" ]
+	then
+		echo -e "> $CURRENT_SCRIPT : Installing LIBLZMA."
+		cd $DOWNLOAD_DIR
+		rm -rf $DOWNLOAD_DIR/liblzma
+		git clone https://github.com/kobolabs/liblzma
+		cd $DOWNLOAD_DIR/liblzma
+		./configure prefix=$INSTALL_DIR
+		make
+		make install
+		LIBLZMA_DIR=$INSTALL_DIR
+	else
+		LIBLZMA_DIR=`dirname $liblzmasofile`
+		LIBLZMA_DIR=`dirname $LIBLZMA_DIR`
+	fi
+
+	if [[ "$LDFLAGS" != *"-L$LIBLZMA_DIR/lib"* ]]
+	then
+		export LDFLAGS="$LDFLAGS -L$LIBLZMA_DIR/lib"
+	fi
+	if [[ "$CFLAGS" != *"-I$LIBLZMA_DIR/include"* ]]
+	then
+		export CFLAGS="$CFLAGS -I$LIBLZMA_DIR/include"
+	fi
+	
+	
+	###########
+	# PYTHON3 #
+	###########
+	monger install python3
+	
+	##################
+	# PYTHON MODULES #
+	##################
+	pip3 install Cython
+	pip3 install pysam
+	pip3 install khmer
+	
+	###############################################
+
+	####################################
+	####### INSTALL MAIN PROGRAM #######
+	####################################
+
+	###########
+	# ATROPOS #
+	###########
+	if ! type "atropos" >/dev/null 2>/dev/null || [ $FORCE == "TRUE" ]
+	then
+		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
+		pip3 install atropos
+		##############################
+	else
+		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
+	fi
+}
+
+function run {
+	MODULE_NAME=$1
+	shift
+	MODULE_INFO=$1
+	shift
+	AUTHOR_INFO=$1
+	shift
+	module_name=`echo $MODULE_NAME | tr "[A-Z]" "[a-z]"`
+	SUBTHREADS=1
+	####################################
+	########### FUNCTIONS ##############
+	####################################
+
+	function time_elapsed {
+		end_time=`date +%s`
+		elapsed_secs=`expr $end_time - $1`
+		date -u -d @${elapsed_secs} +"%T"
+	}
+	
+	####################################
+	############ USAGE #################
+	####################################
+	usage="SYNOPSIS:\nmonger run $module_name\n$MODULE_INFO\n\
+OPTIONS:\n\
+  -1 | --input1\t[FILE]\tFASTQ input to evaluate.\n\
+  -2 | --input2\t[FILE]\tFASTQ input (if paired-end)\n\
+  -3 | --input3\t[FILE]\tUnpaired FASTQ reads\n\
+  -n | --name\t[STR]\tSample name (basename of outputs)\n\
+  -o | --outdir\t[DIR]\tOutput directory\n\
+  -t | --threads\n\
+  -A | --args\t[STR]\tArguments specified as variables in a bash file.\n\
+  -f | --force\t\t\tOverwrite existing files.\n\
+  -a | --adapters\t[FASTA]\tFASTA file containing adapter sequences.\n\
+  --identify_adapters\t[BOOL]\tUse AdapterRemoval to find adapter sequences.[FALSE]\n\
+  --trim_adapters\t[BOOL]\tIdentify and trim adapter sequences.[TRUE]\n\
+  --trim_ends\t[BOOL]\tTrim low quality ends or Ns at the ends of reads.[FALSE]\n\
+  -q | --min_quality\t[INT]\tMinimum quality allowed before trimming if '--trim_ends' is true.[3]\n\
+  -m | --min_length\t[INT]\tDiscard trimmed reads smaller than this.[15] \n\
+  -N | --max_Ns\t[INT]\tMaximum allowable number of ambiguous bp's in a read before discarding.[50]\n\
+  -c | --collapse\t\t\tCollapse overlapping paired-end reads into single read.\n\
+  -u | --unpaired\t\t\tOutput unpaired singleton reads when using in a pipeline.\n\
+  -h | --help\t\t\tPrint help message\n\n\
+AUTHOR:\n\
+$AUTHOR_INFO"
+
+	####################################
+	######## INPUT PROCESSING ##########
+	####################################
+	FORCE=FALSE
+	if [ $# -eq 0 ]
+	then
+		echo -e $usage
+		exit 1
+	fi
+
+	#################
+	# Program specific defaults
+	adapter_path=ADAPTER_PATH
+	identify_adapters=false
+	trim_adapters=true
+	trim_ends=false
+	min_quality=3
+	min_length=15
+	max_Ns=50
+	collapse=false
+	unpaired=false
+	#################
+	while [ "$1" != "" ]
+	do
+		case $1 in
+			-1 | --input1)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					if ! test -f $1
+					then
+						echo -e "\nMONGER RUN $MODULE_NAME WARNING: Cannot find input file $1. Skipping...\n"
+					else
+						inputs="$inputs $1"
+						in1=$1
+					fi
+				fi;;
+			-2 | --input2)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					if ! test -f $1
+					then
+						echo -e "\nMONGER RUN $MODULE_NAME WARNING: Cannot find input file $1. Skipping...\n"
+					else
+						inputs="$inputs $1"
+						in2="$main_inputs $1"
+					fi
+				fi;;
+			-3 | --input3)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					if ! test -f $1
+					then
+						echo -e "\nMONGER RUN $MODULE_NAME WARNING: Cannot find input file $1. Skipping...\n"
+					else
+						inputs="$inputs $1"
+						in3=$1
+					fi
+				fi;;
+			-I | --input_list)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					if ! test -f $1
+						then
+							echo -e "\nMONGER RUN $MODULE_NAME ERROR: Cannot find input file list $1.\n"
+							exit 1
+						else
+							input_list=$1
+							field_num=`awk -F'[\t ]' '{print NF}' $input_list`
+							name=`awk -F'[\t ]' -v last_field="$field_num" '{print $last_field}' $input_list`
+							index=1
+							while [ $index -lt $field_num ]
+							do
+								input=`awk -F'[\t ]' -v field="$index" '{print $field}' $input_list`
+								if ! test -f "$input"
+								then
+									echo -e "\nMONGER RUN $MODULE_NAME WARNING: Cannot find input file $input. Skipping...\n"
+								else
+									inputs="$inputs $input"
+									declare "in$index=$input"
+								fi
+								index=$(($index + 1))
+							done
+						fi
+				fi;;
+			-n | --name)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					name=$1
+				fi;;
+			-o | --outdir)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					outdir=$1
+					mkdir -p $outdir
+					if ! test -d $outdir
+					then
+						echo -e "\nMONGER RUN $MODULE_NAME ERROR: Could not find or create output directory $outdir.\n"
+						exit 1
+					fi
+				fi;;
+			-t | --threads)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					SUBTHREADS=$1
+				fi;;
+			-A | --args)
+				shift
+				. $1;;
+			-f | --force)
+				force=true;;
+			# -m | --maxmem)
+			# 	shift
+			# 	maxmem=$1
+			# 	export _JAVA_OPTIONS=-Xmx$maxmem;;
+			# 	# ulimit -v $maxmem;;
+			-h | --help)
+				echo -e $usage
+				exit 1;;
+			*)
+				echo -e "\nMONGER RUN $MODULE_NAME ERROR: $1 is not a valid option.\n$usage"
+				exit 1;;
+			# Trim specific args
+			-a | --adapters)
+				if ! `beginswith "-" "$2"`
+				then
+					adapters=$1
+				fi;;
+			--identify_adapters)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					temp=`echo "$1" | tr '[A-Z]' '[a-z]'`
+					if [ "$temp" == "true" ] || "$temp" == "false"
+					then
+						indentify_adapters=$temp
+					fi
+				fi;;
+			--trim_adapters)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					temp=`echo "$1" | tr '[A-Z]' '[a-z]'`
+					if [ "$temp" == "true" ] || "$temp" == "false"
+					then
+						trim_adapters=$temp
+					fi
+				fi;;
+			--trim_ends)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					temp=`echo "$1" | tr '[A-Z]' '[a-z]'`
+					if [ "$temp" == "true" ] || "$temp" == "false"
+					then
+						--trim_ends=$temp
+					fi
+				fi;;
+			-q | --min_quality)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					if [ "$1" -eq "$1" ] 2>/dev/null
+					then
+						min_quality=$1
+					else
+						echo -e "MONGER RUN $MONGER_NAME WARNING: Argument specified ($1) for \"--min_quality\" is not an integer. Using default..."
+					fi
+				fi;;
+			-m | --min_length)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					if [ "$1" -eq "$1" ] 2>/dev/null
+					then
+						min_length=$1
+					else
+						echo -e "MONGER RUN $MONGER_NAME WARNING: Argument specified ($1) for \"--min_length\" is not an integer. Using default..."
+					fi
+				fi;;
+			-N | --max_Ns)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					if [ "$1" -eq "$1" ] 2>/dev/null
+					then
+						max_Ns=$1
+					else
+						echo -e "MONGER RUN $MONGER_NAME WARNING: Argument specified ($1) for \"--max_Ns\" is not an integer. Using default..."
+					fi
+				fi;;
+			-c | --collapse)
+				collapse=true;;
+			-u | --unpaired)
+				unpaired=true;;
+		esac
+		shift
+	done
+	
+	if [ "$name" == "" ]
+	then
+		name=`echo $inputs | cut -d' ' -f1 | basename`
+		name="${name%.*}"
+	fi
+	mkdir -p $outdir/logs
+	mkdir -p $outdir/resume
+	mkdir -p $outdir/program_logs
+	mkdir -p $outdir/commands
+	log_file=$outdir/logs/$name.log.txt
+	resume_file=$outdir/resume/$name.resume.txt
+	program_log_file=$outdir/program_logs/$name.program_log.txt
+	current_proglog=$outdir/commands/$name.current_proglog.txt
+	command_file=$outdir/commands/$name.commands.txt
+	current_command=$outdir/commands/$name.current_command.txt
+	main_start=`date +%s`
+	if ! test -f $resume_file || [ "$force" == "true" ]
+	then
+		echo -e "$MODULE_NAME:" > $log_file
+		echo -e "# $MODULE_NAME" > $command_file
+		echo -e "$MODULE_NAME" > $resume_file
+		echo -e "$MODULE_NAME" > $program_log_file
+	fi
+	
+	#######################################################
+	##### COMMAND CHECK AND INSTALL REQUIRED PROGRAMS #####
+	#######################################################
+	if ! type "atropos" >/dev/null 2>/dev/null
+	then
+		monger install atropos
+	fi
+	#######################################################
+	
+	####################################
+	########## MAIN PROGRAM ############
+	####################################
+	echo -e "Inputs: $inputs" >> $log_file
+	# PROGRAM
+	STEP_NAME=identify_adapters
+	if [ "$identify_adapters" == "true" ] && test -f "$in2"
+	then
+		if [ "`grep "$STEP_NAME.$name=complete" $resume_file`" == "" ] || [ "$force" == "true" ]
+		then
+			# Process start time
+			start=`date +%s`
+			echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for \"$name\"."
+			echo -e "$STEP_NAME:" >> $program_log_file
+			#################
+			# Make sure program is installed
+			if ! type "AdapterRemoval" >/dev/null 2>/dev/null 
+			then
+				monger install adapterremoval
+			fi
+			#################
+			# Program step command
+			mkdir -p $outdir/adapters
+			####
+			command="AdapterRemoval --identify-adapters \
+				--file1 $in1 \
+				--file2 $in2 \
+				> $outdir/adapters/$name.adapters.txt 2>&1"
+			echo -e "$command\n" > $current_command
+			eval $command
+			cat $current_command  | sed 's|\s\+| |g' >> $command_file
+			adapter1=`grep "\-\-adapter1" $outdir/adapters/$name.adapters.txt | cut -d" " -f5`
+			adapter2=`grep "\-\-adapter2" $outdir/adapters/$name.adapters.txt | cut -d" " -f5`
+			echo -e ">adapter1\n$adapter1\n>adapter2\n$adapter2" >  $outdir/adapters/$name.adapters.fa
+			#################
+			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
+			elapsed=`time_elapsed $start`
+			echo -e "$STEP_NAME: $elapsed" >> $log_file
+			echo "$STEP_NAME.$name=complete" >> $resume_file
+		else
+			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for \"$name\". Skipping..."
+		fi
+		adapters=$outdir/adapters/$name.adapters.fa
+	fi
+	STEP_NAME="atropos"
+	if [ "`grep "$STEP_NAME.$name=complete" $resume_file`" == "" ] || [ "$force" == "true" ]
+	then
+		# Process start time
+		start=`date +%s`
+		echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for \"$name\"."
+		echo -e "$STEP_NAME:" >> $program_log_file
+		#####################################################################################
+		# Make sure program is installed
+		if ! type "atropos" >/dev/null 2>/dev/null 
+		then
+			monger install $MODULE_NAME
+		fi
+		pypath=`which python3`
+		export PYTHON_PATH=$pypath
+		# Change adapter input from fasta to format program can use
+		if [ "$adapters" != "" ] \
+			&& ! `echo "$atropos_args" | grep -q "\-b "`
+		then
+			adapter1=`head -2 $adapters | tail -1`
+			adapter_input="-a $adapter1"
+			if test -f "$in2" \
+				&& ! `echo "$atropos_args" | grep -q "\-A "`
+			then
+				adapter2=`head -4 $adapters | tail -1`
+				adapter_input="$adapter_input -A $adapter2"
+			fi
+		fi
+		# Construct program arguments if not provided in mongerscript
+		if [ "$trim_adapters" == "false" ] \
+			&& ! `echo "$atropos_args" | grep -q '\-\-no-trim'`
+		then
+			atropos_args="$atropos_args --no-trim"
+		fi
+		if [ "$trim_ends" == "true" ] \
+			&& ! `echo "$atropos_args" | grep -q '\-q'`
+		then
+			atropos_args="$atropos_args -q $min_quality,$min_quality"
+		fi
+		if [ "$trim_ends" == "true" ] \
+			&& ! `echo "$atropos_args" | grep -q '\-\-trim-n'`
+		then
+			atropos_args="$atropos_args --trim-n"
+		fi
+		if ! `echo "$atropos_args" | grep -q '\-m'`
+		then
+			atropos_args="$atropos_args -m $min_length"
+		fi
+		if ! `echo "$atropos_args" | grep -q '\-\-max-n'`
+		then
+			atropos_args="$atropos_args --max-n $max_Ns"
+		fi
+		# Define how program takes in inputs
+		if test -f "$in2"
+		then
+			program_inputs="-pe1 $in1 -pe2 $in2"
+			output="-o $outdir/$name.1.fastq -p $outdir/$name.2.fastq"
+		else
+			program_inputs="-se $in1"
+			output="-o $outdir/$name.fastq"
+		fi
+		# Program command
+		command="atropos \
+			-T $SUBTHREADS \
+			--quality-base $PHRED_BASE \
+			$adapter_input \
+			$output \
+			$program_inputs \
+			$atropos_args \
+			> $current_proglog 2>&1"
+		echo -e "$command\n" > $current_command
+		eval $command
+		cat $current_command  | sed 's|\s\+| |g' >> $command_file
+		cat $current_proglog >> $program_log_file
+		if test -f "$in3"
+		then
+			command="atropos \
+				-T $SUBTHREADS \
+				--quality-base $PHRED_BASE \
+				$adapter_input \
+				-o $outdir/$name.3.fastq \
+				-se $in3 \
+				$atropos_args \
+					> $current_proglog 2>&1"
+			echo -e "$command\n" > $current_command
+			eval $command
+			cat $current_command  | sed 's|\s\+| |g' >> $command_file
+			cat $current_proglog >> $program_log_file
+		fi
+		#####################################################################################
+		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
+		#################
+		elapsed=`time_elapsed $start`
+		echo -e "\t$STEP_NAME: $elapsed" >> $log_file
+		echo "$STEP_NAME.$name=complete" >> $resume_file
+	else
+		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for file \"$name\". Skipping..."
+	fi
+	#####################################################################################
+	# Output names:
+	singletons=""
+	collapsed=""
+	pair1="$outdir/$name.1.fastq"
+	pair2="$outdir/$name.2.fastq"
+	single_end="$outdir/$name.3.fastq"
+	# Record output info for downstream modules
+	mkdir -p $outdir/outputs
+	if test -f "$in2"
+	then
+		# Combine single-end outputs (unpaired reads) into on file for downstream use
+		if test -f "$singletons"
+		then
+			cat $singletons > $outdir/$name.unpaired.fastq
+		fi
+		if [ "$collapse" == "true" ] && test -f "$collapsed"
+		then
+			cat $collapsed >> $outdir/$name.unpaired.fastq
+		fi
+		if test -f "$single_end"
+		then
+			cat $single_end >> $outdir/$name.unpaired.fastq
+		fi
+		if [ "$unpaired" == "true" ] && test -f "$outdir/$name.unpaired.fastq"
+		then
+			echo -e "$pair1\t$pair2\t$outdir/$name.unpaired.fastq\t$name" > $outdir/outputs/$name.outputs.txt
+		else
+			echo -e "$pair1\t$pair2\t$name" > $outdir/outputs/$name.outputs.txt
+		fi
+	else
+		# Add names of single-end files to a textfile for downstream use
+		echo -e "$single_end\t$name" >  $outdir/outputs/$name.outputs.txt
+	fi
+	main_elapsed=`time_elapsed $main_start`
+	sed -i "s|$MODULE_NAME\:.*|$MODULE_NAME\: $main_elapsed|" $log_file
+	echo -e "MONGER RUN $MODULE_NAME: Complete."
+}
+
+############################################################
+if [ "$1" == "run" ]
+then
+	shift
+	run "$MODULE_NAME" "$MODULE_INFO" "$AUTHOR_INFO" $*
+elif [ "$1" == "install" ]
+then
+	shift
+	mongerinstall "$MODULE_NAME" "$MODULE_INFO" "$AUTHOR_INFO" $*
+else
+	echo -e \
+"SYNOPSIS:\n\
+monger [run|install] $module_name\n$MODULE_INFO\n$AUTHOR_INFO"
+	exit 1
+fi

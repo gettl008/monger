@@ -1,0 +1,335 @@
+#!/usr/bin/env bash
+#define MAX_ARG_PAGES 32
+set -e
+export SHELL=$(type -p bash)
+freemem=`free | awk '{print $4}'`
+freemem=`echo $freemem | cut -d' ' -f4`
+MEMLIMIT=`echo $freemem | cut -d' ' -f4`
+export _JAVA_OPTIONS=-Xmx2g
+###############################################
+MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`
+function beginswith { 
+	case $2 in 
+		"$1"*) true;; 
+		*) false;; 
+	esac
+}
+###############################################
+###################
+### MODULE INFO ###
+###################
+DESCRIPTION="A quality control tool for high throughput sequence data."
+WEBSITE="http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+CITATIONS=
+MODULE_AUTHOR="Noah Gettle"
+YEAR_WRITTEN="2016"
+###############################################
+MODULE_INFO="DESCRIPTION:\n$DESCRIPTION\nWEBSITE:\n$WEBSITE\nCITATION:\n$CITATION"
+AUTHOR_INFO="$MODULE_AUTHOR $YEAR_WRITTEN"
+
+function mongerinstall {
+	MODULE_NAME=$1
+	shift
+	MODULE_INFO=$1
+	shift
+	AUTHOR_INFO=$1
+	shift
+	module_name=`echo $MODULE_NAME | tr "[A-Z]" "[a-z]"`
+	SUBTHREADS=1
+	####################################
+	############ USAGE #################
+	####################################
+	usage="SYNOPSIS:\nmonger install $module_name\n$MODULE_INFO\n\
+OPTIONS:\n\
+  -i | --install_dir [DIR]\tInstallation directory [/usr/local/]\n\
+  -f | --force\t\t\tOverwrite existing program executables.\n\
+  -h | --help\t\t\tPrint help message\n\n\
+AUTHOR:\n\
+$AUTHOR_INFO"
+  
+	####################################
+	######## INPUT PROCESSING ##########
+	####################################
+	INSTALL_DIR=/usr/local
+	FORCE=FALSE
+	while [ "$1" != "" ]
+	do
+		case $1 in
+			-i | --install_dir)	
+				if ! `beginswith "-" $2`
+				then 
+					shift
+					INSTALL_DIR=$1
+				fi;;
+			-f | --force)	
+				FORCE=TRUE;;
+			-h | --help)	
+				echo -e $usage
+				exit 1;;
+			*)				
+				echo -e "\nMONGER RUN $MODULE_NAME ERROR: $1 is not a valid option.\n$usage"
+				exit 1						
+		esac
+		shift
+	done
+
+	####################################
+
+	PATH_SEP=`echo $PATH | sed 's|:| |g'`
+	LD_LIBRARY_PATH_SEP=`echo $LD_LIBRARY_PATH | sed 's|:| |g'`
+	INCLUDE_SEP=`echo $INCLUDE | sed 's|:| |g'`
+
+	cur_dir=`pwd`
+	DOWNLOAD_DIR=$INSTALL_DIR/soft
+	mkdir -p $DOWNLOAD_DIR
+
+	###############################################
+
+	####################################
+	###### INSTALL DEPENDENCIES ########
+	####################################
+
+	##########
+	# PICARD #
+	##########
+	monger install picard -i $INSTALL_DIR
+
+	###############################################
+
+	####################################
+	###### INSTALL MAIN PROGRAM ########
+	####################################
+
+	##########
+	# FASTQC #
+	##########
+	if ! type "fastqc" >/dev/null 2>/dev/null || [ $FORCE == "TRUE" ]
+	then
+		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
+		cd $DOWNLOAD_DIR
+		if ! test -f $DOWNLOAD_DIR/fastqc_v0.11.4.zip
+		then
+			wget http://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.4.zip
+		fi
+		unzip $DOWNLOAD_DIR/fastqc_v0.11.4.zip
+		cd $INSTALL_DIR/bin
+		ln -sf $DOWNLOAD_DIR/FastQC/fastqc ./
+		chmod 755 $INSTALL_DIR/bin/fastqc
+	else
+		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
+	fi
+}
+function run {
+	MODULE_NAME=$1
+	shift
+	MODULE_INFO=$1
+	shift
+	AUTHOR_INFO=$1
+	shift
+	module_name=`echo $MODULE_NAME | tr "[A-Z]" "[a-z]"`
+	SUBTHREADS=1
+	####################################
+	########### FUNCTIONS ##############
+	####################################
+
+	function time_elapsed {
+		end_time=`date +%s`
+		elapsed_secs=`expr $end_time - $1`
+		date -u -d @${elapsed_secs} +"%T"
+	}
+
+	####################################
+	############ USAGE #################
+	####################################
+	usage="SYNOPSIS:\nmonger run $module_name\n$MODULE_INFO\n\
+OPTIONS:\n\
+  -1 | --input1\t[FILE]\tInput (FASTA/FASTQ/BAM) to evaluate.\n\
+  -2 | --input2\t[FILE]\tInput (FASTA/FASTQ/BAM) (if paired-end)\n\
+  -3 | --input3\t[FILE]\tUnpaired input (FASTA/FASTQ/BAM) (if paired-end)\n\
+  -I | --input_list\t[FILE]\tFile containing tab delimited list of inputs. By default, last column indicates name.\n\
+  -n | --name\t[STR]\tSample name (basename of outputs)\n\
+  -o | --outdir\t[DIR]\tOutput directory\n\
+  -t | --threads\n\
+  -A | --args\t[STR]\tArguments specified as variables in a bash file.\n\
+  -f | --force\t\tOverwrite existing files.\n\
+  -h | --help\t\tPrint help message\n\n\
+AUTHOR:\n\
+$AUTHOR_INFO"
+	# echo -e $MODULE_INFO
+	# echo -e $usage
+	####################################
+	######## INPUT PROCESSING ##########
+	####################################
+	if [ $# -eq 0 ]
+	then
+		echo -e $usage
+		exit 1
+	fi
+	while [ "$1" != "" ]
+	do
+		case $1 in
+			-1 | --input1 | -2 | --input2 | -3 | --input3)
+				while ! `beginswith "-" "$2"` && [ "$2" != "" ]
+				do
+					shift
+					if ! test -f $1
+					then
+						echo -e "\nMONGER RUN $MODULE_NAME WARNING: Cannot find input file $1. Skipping...\n"
+					else
+						inputs="$inputs $1"
+					fi
+				done;;
+			-I | --input_list)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					if ! test -f $1
+					then
+						echo -e "\nMONGER RUN $MODULE_NAME ERROR: Cannot find input file list $1.\n"
+						exit 1
+					else
+						input_list=$1
+						field_num=`awk -F'[\t ]' '{print NF}' $input_list`
+						name=`awk -F'[\t ]' -v last_field="$field_num" '{print $last_field}' $input_list`
+						index=1
+						while [ $index -lt $field_num ]
+						do
+							input=`awk -F'[\t ]' -v field="$index" '{print $field}' $input_list`
+							if ! test -f "$input"
+							then
+								echo -e "\nMONGER RUN $MODULE_NAME WARNING: Cannot find input file $input. Skipping...\n"
+							else
+								inputs="$inputs $input"
+								declare "in$index=$input"
+							fi
+							index=$(($index + 1))
+						done
+					fi
+				fi;;	
+			-n | --name)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					name=$1
+				fi;;	
+			-o | --outdir)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					outdir=$1
+					mkdir -p $outdir
+					if ! test -d $outdir
+					then
+						echo -e "\nMONGER RUN $MODULE_NAME: Could not find or create output directory $outdir.\n"
+						exit 1
+					fi
+				fi;;
+			-t | --threads)
+				if ! `beginswith "-" "$2"`
+				then
+					shift
+					SUBTHREADS=$1
+				fi;;
+			-A | --args)
+				shift
+				. $1;;
+			-f | --force)
+				force=true;;
+			# -m | --maxmem)
+			# 	shift
+			# 	maxmem=$1
+			# 	export _JAVA_OPTIONS=-Xmx$maxmem;;
+				# ulimit -v $maxmem;;
+			-h | --help)	
+				echo -e $usage
+				exit 1;;
+			*)				
+				echo -e "\nMONGER RUN $MODULE_NAME ERROR: $1 is not a valid option.\n$usage"
+				exit 1;;			
+		esac
+		shift
+	done
+	
+	if [ "$name" == "" ]
+	then
+		name=`echo $inputs | cut -d' ' -f1 | basename`
+		name="${name%.*}"
+	fi
+	mkdir -p $outdir/logs
+	mkdir -p $outdir/resume
+	mkdir -p $outdir/program_logs
+	mkdir -p $outdir/commands
+	log_file=$outdir/logs/$name.log.txt
+	resume_file=$outdir/resume/$name.resume.txt
+	program_log_file=$outdir/program_logs/$name.program_log.txt
+	current_proglog=$outdir/commands/$name.current_proglog.txt
+	command_file=$outdir/commands/$name.commands.txt
+	current_command=$outdir/commands/$name.current_command.txt
+	main_start=`date +%s`
+	if ! test -f $resume_file || [ "$force" == "true" ]
+	then
+		echo -e "$MODULE_NAME:" > $log_file
+		echo -e "# $MODULE_NAME" > $command_file
+		echo -e "$MODULE_NAME" > $resume_file
+		echo -e "$MODULE_NAME" > $program_log_file
+	fi
+	
+	#######################################################
+	##### COMMAND CHECK AND INSTALL REQUIRED PROGRAMS #####
+	#######################################################
+	if ! type "fastqc" >/dev/null 2>/dev/null
+	then
+		monger install fastqc
+	fi
+	#######################################################
+	
+	####################################
+	########## MAIN PROGRAM ############
+	####################################
+	echo -e "Inputs: $inputs" >> $log_file
+	# FASTQC
+	STEP_NAME=fastqc
+	if [ "`grep "$STEP_NAME.$name=complete" $resume_file`" == "" ] || [ "$force" == "true" ]
+	then
+		# Process start time
+		start=`date +%s`
+		echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for \"$name\"."
+		#################
+		command="fastqc $inputs \
+			-o $outdir \
+			-t $SUBTHREADS \
+			$fastqc_args \
+			> $current_proglog 2>&1"
+		echo -e "$command\n" > $current_command
+		eval $command
+		cat $current_command  | sed 's|\s\+| |g' >> $command_file
+		cat $current_proglog >> $program_log_file
+		mkdir -p $outdir/zip_files
+		mv $outdir/*.zip $outdir/zip_files
+		#################
+		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete." 
+		elapsed=`time_elapsed $start`
+		echo -e "\t$STEP_NAME: $elapsed" >> $log_file
+		echo "$STEP_NAME.$name=complete" >> $resume_file
+	else
+		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for file \"$name\". Skipping..."
+	fi
+	main_elapsed=`time_elapsed $main_start`
+	sed -i "s|$MODULE_NAME\:.*|$MODULE_NAME\: $main_elapsed|" $log_file
+	echo -e "MONGER RUN $MODULE_NAME: Complete."
+}
+
+############################################################
+if [ "$1" == "run" ]
+then
+	shift
+	run "$MODULE_NAME" "$MODULE_INFO" "$AUTHOR_INFO" $*
+elif [ "$1" == "install" ]
+then
+	shift
+	mongerinstall "$MODULE_NAME" "$MODULE_INFO" "$AUTHOR_INFO" $*
+else
+	echo -e "SYNOPSIS:\n\
+monger [run|install] $module_name\n$MODULE_INFO\n$AUTHOR_INFO"
+	exit 1
+fi

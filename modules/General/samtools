@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+#define MAX_ARG_PAGES 32
+set -e
+export SHELL=$(type -p bash)
+# freemem=`free | awk '{print $4}'`
+# freemem=`echo $freemem | cut -d' ' -f4`
+# MEMLIMIT=`expr $freemem \/ 4 \* 3`
+###############################################
+MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`
+function beginswith { 
+	case $2 in 
+		"$1"*) true;; 
+		*) false;; 
+	esac
+}
+###############################################
+
+function mongerinstall {
+	####################################
+	############ USAGE #################
+	####################################
+	usage=\
+"SYNOPSIS:\n\
+monger install samtools\n\n\
+DESCRIPTION:\n\
+Installer for Samtools and its dependencies.\n\n\
+SAMTOOLS DESCRIPTION:\n\
+Samtools (v1.x) is a suite of programs for interacting with high-throughput sequencing data.\n\
+WEBSITE:\n\
+http://www.htslib.org/\n\n\
+CITATION:\n\
+OPTIONS:\n\
+  -i | --install_dir [DIR]\tInstallation directory [/usr/local/]\n\
+  -f | --force\t\t\tOverwrite existing program executables.\n\
+  -h | --help\t\t\tPrint help message\n\n\
+AUTHOR:\n\
+Noah Gettle 2016"
+	
+	####################################
+	######## INPUT PROCESSING ##########
+	####################################
+	MODULE_NAME=$1
+	shift
+	INSTALL_DIR=/usr/local
+	FORCE=FALSE
+	while [ "$1" != "" ]
+	do
+		case $1 in
+			-i | --install_dir)
+				if ! `beginswith "-" $2`
+				then
+					shift
+					INSTALL_DIR=$1
+				fi;;
+			-f | --force)	FORCE=TRUE;;
+			-h | --help)	echo -e $usage
+							exit 1;;
+			*)				echo -e "$1 not recognized as a valid option.\nUse option \"-h\" for more help."
+							exit 1						
+		esac
+		shift
+	done
+
+	####################################
+
+	PATH_SEP=`echo $PATH | sed 's|:| |g'`
+	LD_LIBRARY_PATH_SEP=`echo $LD_LIBRARY_PATH | sed 's|:| |g'`
+	INCLUDE_SEP=`echo $INCLUDE | sed 's|:| |g'`
+
+	cur_dir=`pwd`
+	DOWNLOAD_DIR=$INSTALL_DIR/soft
+	mkdir -p $DOWNLOAD_DIR
+
+	###############################################
+
+	####################################
+	###### INSTALL DEPENDENCIES ########
+	####################################
+	########
+	# ZLIB #
+	########
+	libzsofile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libz.so' | head -1`
+	libzafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libz.a'`
+	zlibpcfile=`find $LD_LIBRARY_PATH_SEP -maxdepth 2 -name 'zlib.pc'`
+	zlibhfile=`find $INCLUDE_SEP -maxdepth 1 -name 'zlib.h'`
+	if [ "$libzsofile" == "" ] || [ "$libzafile" == "" ] || [ "$zlibpcfile" == "" ] || [ "$zlibhfile" == "" ]
+	then
+		echo -e "> $CURRENT_SCRIPT : Installing ZLIB."
+		cd $DOWNLOAD_DIR
+		wget http://zlib.net/zlib-1.2.8.tar.gz
+		tar -zxvf $DOWNLOAD_DIR/zlib-1.2.8.tar.gz
+		cd $DOWNLOAD_DIR/zlib-1.2.8
+		./configure --prefix=$INSTALL_DIR
+		make
+		make install
+		rm -f $DOWNLOAD_DIR/zlib-1.2.8.tar.gz
+	fi
+
+	###########
+	# NCURSES #
+	###########
+	libncursesafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libncurses.a'`
+	libncursesgafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libncurses_g.a'`
+	libncursesppafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libncurses++.a'`
+	libncursesppgafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libncurses++_g.a'`
+	ncursesdir=`find $INCLUDE_SEP -maxdepth 1 -name 'ncurses' -type d`
+	if [ "$libncursesafile" == "" ] || [ "$libncursesgafile" == "" ]\
+		 || [ "$libncursesppafile" == "" ] || [ "$libncursesppgafile" == "" ]\
+			 || [ "$ncursesdir" == "" ]
+	then
+		echo -e "> $CURRENT_SCRIPT : Installing NCURSES."
+		cd $DOWNLOAD_DIR
+		if ! test -f $DOWNLOAD_DIR/ncurses-6.0.tar.gz
+		then
+			wget http://ftp.gnu.org/gnu/ncurses/ncurses-6.0.tar.gz
+		fi
+		tar -zxvf $DOWNLOAD_DIR/ncurses-6.0.tar.gz
+		cd $DOWNLOAD_DIR/ncurses-6.0
+		./configure --prefix=$INSTALL_DIR
+		make
+		make install
+		rm $DOWNLOAD_DIR/ncurses-6.0.tar.gz
+	fi
+
+	############
+	# BCFTOOLS #
+	############
+	monger install bcftools -i $INSTALL_DIR
+
+	###############################################
+
+	####################################
+	###### INSTALL MAIN PROGRAM ########
+	####################################
+
+	############
+	# SAMTOOLS #
+	############
+	if type "samtools" >/dev/null 2>/dev/null
+	then
+		set +e
+		eval "samtools --version" >/tmp/error 2>/tmp/error
+		set -e
+		if [ `head -1 /tmp/error | cut -d' ' -f1` != "samtools" ]
+		then
+			FORCE="TRUE"
+		fi
+	fi
+	if ! type "samtools" >/dev/null 2>/dev/null || [ "$FORCE" == "TRUE" ]
+	then
+		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
+		cd $DOWNLOAD_DIR
+		if ! test -f $	$DOWNLOAD_DIR/samtools-1.3.1.tar.bz2
+		then
+			wget https://github.com/samtools/samtools/releases/download/1.3.1/samtools-1.3.1.tar.bz2
+		fi
+		tar -jxvf $DOWNLOAD_DIR/samtools-1.3.1.tar.bz2
+		cd $DOWNLOAD_DIR/samtools-1.3.1
+		./configure --prefix=$INSTALL_DIR
+		make
+		make install
+		cd $DOWNLOAD_DIR/samtools-1.3.1/htslib-1.3.1
+		./configure --prefix=$INSTALL_DIR
+		make
+		make install
+		rm $DOWNLOAD_DIR/samtools-1.3.1.tar.bz2
+	else
+		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
+	fi
+}
+
+############################################################
+if [ "$1" == "run" ]
+then
+	shift
+	run $MODULE_NAME $*
+elif [ "$1" == "install" ]
+then
+	shift
+	mongerinstall $MODULE_NAME $*
+else
+	echo -e "MONGER $MODULE_NAME ERROR: You must specify either \"run\" or \"install\""
+	exit 1
+fi

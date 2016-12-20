@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+#define MAX_ARG_PAGES 32
+set -e
+export SHELL=$(type -p bash)
+# freemem=`free | awk '{print $4}'`
+# freemem=`echo $freemem | cut -d' ' -f4`
+# MEMLIMIT=`expr $freemem \/ 4 \* 3`
+###############################################
+MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`
+function beginswith { 
+	case $2 in 
+		"$1"*) true;; 
+		*) false;; 
+	esac
+}
+###############################################
+
+function mongerinstall {
+	####################################
+	############ USAGE #################
+	####################################
+	usage=\
+"SYNOPSIS:\n\
+monger install bcftools\n\n\
+DESCRIPTION:\n\
+Installer for BCFTools7 and its dependencies.\n\n\
+BCFTOOLS DESCRIPTION:\n\
+BCFtools is a program for variant calling and manipulating files in the Variant Call Format (VCF) and its binary counterpart BCF.\n\
+WEBSITE:\n\
+https://samtools.github.io/bcftools/\n\n\
+CITATION:\n\
+OPTIONS:\n\
+  -i | --install_dir [DIR]\tInstallation directory [/usr/local/]\n\
+  -f | --force\t\t\tOverwrite existing program executables.\n\	
+  -h | --help\t\t\tPrint help message\n\n\
+AUTHOR:\n\
+Noah Gettle 2016"
+	
+  	####################################
+  	######## INPUT PROCESSING ##########
+  	####################################
+  	MODULE_NAME=$1
+  	shift
+  	INSTALL_DIR=/usr/local
+  	FORCE=FALSE
+  	while [ "$1" != "" ]
+  	do
+  		case $1 in
+  			-i | --install_dir)
+  				if ! `beginswith "-" $2`
+  				then
+  					shift
+  					INSTALL_DIR=$1
+  				fi;;
+  			-f | --force)	FORCE=TRUE;;
+  			-h | --help)	echo -e $usage
+  							exit 1;;
+  			*)				echo -e "$1 not recognized as a valid option.\nUse option \"-h\" for more help."
+  							exit 1						
+  		esac
+  		shift
+  	done
+
+  	####################################
+
+	PATH_SEP=`echo $PATH | sed 's|:| |g'`
+	LD_LIBRARY_PATH_SEP=`echo $LD_LIBRARY_PATH | sed 's|:| |g'`
+	INCLUDE_SEP=`echo $INCLUDE | sed 's|:| |g'`
+
+	cur_dir=`pwd`
+	DOWNLOAD_DIR=$INSTALL_DIR/soft
+	mkdir -p $DOWNLOAD_DIR
+
+	###############################################
+
+	####################################
+	###### INSTALL DEPENDENCIES ########
+	####################################
+	
+	monger install python3 -i $INSTALL_DIR
+	pip3 install matplotlib
+	
+	###############################################
+
+	####################################
+	###### INSTALL MAIN PROGRAM ########
+	####################################
+
+	############
+	# BCFTOOLS #
+	############
+	if ! type "bcftools" >/dev/null 2>/dev/null || [ "$FORCE" == "TRUE" ]
+	then
+		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
+		cd $DOWNLOAD_DIR
+		if ! test -f $DOWNLOAD_DIR/bcftools-1.3.1.tar.bz2
+		then
+			wget https://github.com/samtools/bcftools/releases/download/1.3.1/bcftools-1.3.1.tar.bz2
+		fi
+		tar -jxvf $DOWNLOAD_DIR/bcftools-1.3.1.tar.bz2
+		cd $DOWNLOAD_DIR/bcftools-1.3.1
+		make
+		cp $DOWNLOAD_DIR/bcftools-1.3.1/bcftools $DOWNLOAD_DIR/bcftools-1.3.1/plot-vcfstats $DOWNLOAD_DIR/bcftools-1.3.1/vcfutils.pl $INSTALL_DIR/bin/
+		rm $DOWNLOAD_DIR/bcftools-1.3.1.tar.bz2
+	else
+		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
+	fi
+}
+
+############################################################
+if [ "$1" == "run" ]
+then
+	shift
+	run $MODULE_NAME $*
+elif [ "$1" == "install" ]
+then
+	shift
+	mongerinstall $MODULE_NAME $*
+else
+	echo -e "MONGER $MODULE_NAME ERROR: You must specify either \"run\" or \"install\""
+	exit 1
+fi

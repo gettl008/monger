@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+#define MAX_ARG_PAGES 32
+set -e
+export SHELL=$(type -p bash)
+freemem=`free | awk '{print $4}'`
+freemem=`echo $freemem | cut -d' ' -f4`
+MEMLIMIT=`expr $freemem \/ 4 \* 3`
+export _JAVA_OPTIONS=-Xmx2g
+###############################################
+MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`
+module_name=`basename "$0" | tr "[A-Z]" "[a-z]"`
+function beginswith { 
+	case $2 in 
+		"$1"*) true;; 
+		*) false;; 
+	esac
+}
+###############################################
+###################
+### MODULE INFO ###
+###################
+DESCRIPTION="HTSeq is a Python package that provides infrastructure to process data from high-throughput sequencing assays."
+WEBSITE="http://www-huber.embl.de/HTSeq/doc/overview.html"
+CITATIONS="Anders, S., P. T. Pyl, and W. Huber. 2014. HTSeq – A Python framework to work with high-throughput sequencing data HTSeq – A Python framework to work with high-throughput sequencing data. Bioinformatics. 31:0–5."
+MODULE_AUTHOR="Noah Gettle"
+YEAR_WRITTEN="2016"
+###############################################
+MODULE_INFO=\
+"DESCRIPTION:\n\
+$DESCRIPTION\n\n\
+WEBSITE:\n\
+$WEBSITE\n\n\
+CITATION:\n\
+$CITATION\n\n"
+AUTHOR_INFO="$MODULE_AUTHOR $YEAR_WRITTEN"
+
+function mongerinstall {
+	MODULE_NAME=$1
+	shift
+	MODULE_INFO=$1
+	shift
+	AUTHOR_INFO=$1
+	shift
+	module_name=`echo $MODULE_NAME | tr "[A-Z]" "[a-z]"`
+	SUBTHREADS=1
+	####################################
+	############ USAGE #################
+	####################################
+	usage=\
+"SYNOPSIS:\n\
+monger install $module_name\n\n\
+$MODULE_INFO\
+OPTIONS:\n\
+  -i | --install_dir [DIR]\tInstallation directory [/usr/local/]\n\
+  -f | --force\t\t\tOverwrite existing program executables.\n\	
+  -h | --help\t\t\tPrint help message\n\n\
+AUTHOR:\n\
+$AUTHOR_INFO"
+
+	####################################
+	######## INPUT PROCESSING ##########
+	####################################
+	INSTALL_DIR=/usr/local
+	FORCE=FALSE
+	while [ "$1" != "" ]
+	do
+		case $1 in
+			-i | --install_dir)	
+				shift
+				INSTALL_DIR=$1;;
+			-f | --force)
+				FORCE=TRUE;;
+			-h | --help)
+				echo -e $usage
+				exit 1;;
+			*)	
+				echo -e "\nMONGER RUN $MODULE_NAME ERROR: $1 is not a valid option.\n$usage"
+				exit 1				
+		esac
+		shift
+	done
+
+	####################################
+
+	PATH_SEP=`echo $PATH | sed 's|:| |g'`
+	LD_LIBRARY_PATH_SEP=`echo $LD_LIBRARY_PATH | sed 's|:| |g'`
+	INCLUDE_SEP=`echo $INCLUDE | sed 's|:| |g'`
+
+	cur_dir=`pwd`
+	DOWNLOAD_DIR=$INSTALL_DIR/soft
+	mkdir -p $DOWNLOAD_DIR
+
+	####################################
+	####### INSTALL DEPENDENCIES #######
+	####################################
+
+	#############
+	# PYTHON2.7 #
+	#############
+	monger install python2.7 -i $INSTALL_DIR
+
+	#########
+	pip install numpy
+	pip install pysam
+	
+
+	###############################################
+
+	####################################
+	####### INSTALL MAIN PROGRAM #######
+	####################################
+
+	#########
+	# HTSEQ #
+	#########
+	if ! type "htseq-count" >/dev/null 2>/dev/null || [ $FORCE == "TRUE" ]
+	then
+		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
+		pip install HTSeq
+	else
+		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
+	fi
+}
+
+############################################################
+if [ "$1" == "run" ]
+then
+	shift
+	run "$MODULE_NAME" "$MODULE_INFO" "$AUTHOR_INFO" $*
+elif [ "$1" == "install" ]
+then
+	shift
+	mongerinstall "$MODULE_NAME" "$MODULE_INFO" "$AUTHOR_INFO" $*
+else
+	echo -e \
+"SYNOPSIS:\n\
+monger [run|install] $module_name\n\n$MODULE_INFO$AUTHOR_INFO"
+	exit 1
+fi
