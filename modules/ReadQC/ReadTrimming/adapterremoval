@@ -401,88 +401,74 @@ $AUTHOR_INFO"
 	mkdir -p $outdir/logs
 	mkdir -p $outdir/resume
 	mkdir -p $outdir/program_logs
+	mkdir -p $outdir/commands
 	log_file=$outdir/logs/$name.log.txt
 	resume_file=$outdir/resume/$name.resume.txt
 	program_log_file=$outdir/program_logs/$name.program_log.txt
-	
-	echo -e "$MODULE_NAME" > $log_file
+	current_proglog=$outdir/program_logs/$name.current_proglog.txt
+	command_file=$outdir/commands/$name.commands.txt
+	current_command=$outdir/commands/$name.current_command.txt
+	main_start=`date +%s`
 	if ! test -f $resume_file || [ "$force" == "true" ]
 	then
-		echo "$MODULE_NAME" > $resume_file
+		echo -e "$MODULE_NAME:" > $log_file
+		echo -e "# $MODULE_NAME" > $command_file
+		echo -e "$MODULE_NAME" > $resume_file
+		echo -e "$MODULE_NAME" > $program_log_file
 	fi
 
 	####################################
 	########## MAIN PROGRAM ############
 	####################################
-	for input in main_inputs unpaired_inputs
-	do
-		current_inputs=${!input}
-		# echo "$current_inputs"
-		if [ `echo $current_inputs | wc -w` -eq 1 ]
-		then
-			ended=SE
-			in1=$current_inputs
-		elif [ `echo $current_inputs | wc -w` -eq 2 ]
-		then
-			ended=PE
-			in1=`echo $current_inputs | cut -d" " -f1`
-			in2=`echo $current_inputs | cut -d" " -f2`
-		elif [ `echo $current_inputs | wc -w` -eq 0 ]
-		then
-			break
-		else
-			echo -e "MONGER RUN $MODULE_NAME WARNING: There appears to be more than two paired files. Using just the first two.\n"
-			ended=PE
-			in1=`echo $current_inputs | cut -d" " -f1`
-			in2=`echo $current_inputs | cut -d" " -f2`
-		fi
-		for part in $current_inputs
-		do
-			part_base=`basename $part`
-			current_basenames="$current_basenames $part_base"
-		done
-		combined_names=`echo $current_basenames | tr " " "_"`
-		echo -e " INPUT:$combined_names.$ended" >> $outdir/log.txt
+	echo -e "Inputs: $inputs" >> $log_file
 		# PROGRAM
 		STEP_NAME=identify_adapters
-		if [ "$identify_adapters" == "true" ] && [ "$ended" == "PE" ]
+		if [ "$identify_adapters" == "true" ] && test -f "$in2"
 		then
-			if [ "`grep "$STEP_NAME.$combined_names=complete" $outdir/resume.txt`" == "" ] || [ "$force" == "true" ]
+			if [ "`grep "$STEP_NAME.$name=complete" $resume_file`" == "" ] || [ "$force" == "true" ]
 			then
 				# Process start time
 				start=`date +%s`
-				echo -e "MONGER RUN $MODULE_NAME: Beginning step $STEP_NAME for $combined_names."
-				echo -e "$STEP_NAME:" >> $outdir/program_log.txt
+				echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for \"$name\"."
+				echo -e "$STEP_NAME:" >> $program_log_file
 				#################
 				# Make sure program is installed
 				if ! type "AdapterRemoval" >/dev/null 2>/dev/null 
 				then
-					monger install $MODULE_NAME
+					monger install adapterremoval
 				fi
 				#################
 				# Program step command
-				AdapterRemoval --identify-adapters --file1 $in1 --file2 $in2 \
-					> $outdir/$name.$ended.adapters.txt 2>&1
-				adapter1=`grep "\-\-adapter1" $outdir/$name.$ended.adapters.txt | cut -d" " -f5`
-				adapter2=`grep "\-\-adapter1" $outdir/$name.$ended.adapters.txt | cut -d" " -f5`
-				echo -e ">adapter1\n$adapter1\n>adapter2\n$adapter2" > $outdir/$name.$ended.adapters.fa
+				mkdir -p $outdir/adapters
+				####
+				command="AdapterRemoval --identify-adapters \
+					--file1 $in1 \
+					--file2 $in2 \
+					> $outdir/adapters/$name.adapters.txt 2>&1"
+				echo -e "$command\n" > $current_command
+				eval $command
+				cat $current_command  | sed 's|\s\+| |g' >> $command_file
+				adapter1=`grep "\-\-adapter1" $outdir/adapters/$name.adapters.txt | cut -d" " -f5`
+				adapter2=`grep "\-\-adapter2" $outdir/adapters/$name.adapters.txt | cut -d" " -f5`
+				echo -e ">adapter1\n$adapter1\n>adapter2\n$adapter2" >  $outdir/adapters/$name.adapters.fa
 				#################
-				echo -e "MONGER RUN $MODULE_NAME: $STEP_NAME for $combined_names complete."
+				echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
 				elapsed=`time_elapsed $start`
-				echo -e "  $STEP_NAME=$elapsed" >> $outdir/log.txt
-				echo "$STEP_NAME.$combined_names=complete" >> $outdir/resume.txt
+				echo -e "$STEP_NAME: $elapsed" >> $log_file
+				echo "$STEP_NAME.$name=complete" >> $resume_file
 			else
-				echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" complete for file $combined_names. Skipping..."
+				echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for \"$name\". Skipping..."
 			fi
-			adapters=$outdir/$name.$ended.adapters.fa
+			adapters=$outdir/adapters/$name.adapters.fa
+		
 		fi
 		STEP_NAME=adapterremoval
-		if [ "`grep "$STEP_NAME.$combined_names=complete" $outdir/resume.txt`" == "" ] || [ "$force" == "true" ]
+		if [ "`grep "$STEP_NAME.$name=complete" $resume_file`" == "" ] || [ "$force" == "true" ]
 		then
 			# Process start time
 			start=`date +%s`
-			echo -e "MONGER RUN $MODULE_NAME: Beginning step $STEP_NAME for $combined_names."
-			echo -e "$STEP_NAME:" >> $outdir/program_log.txt
+			echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for \"$name\"."
+			echo -e "$STEP_NAME:" >> $program_log_file
 			#####################################################################################
 			# Make sure program is installed
 			if ! type "AdapterRemoval" >/dev/null 2>/dev/null 
@@ -494,7 +480,7 @@ $AUTHOR_INFO"
 			then
 				adapter1=`head -2 $adapters | tail -1`
 				adapter_input="--adapter1 $adapter1"
-				if [ "$ended" == "PE" ]
+				if test -f "$in2"
 				then
 					adapter2=`head -4 $adapters | tail -1`
 					adapter_input="$adapter_input --adapter2 $adapter2"
@@ -536,66 +522,82 @@ $AUTHOR_INFO"
 			fi
 			# Define how program takes in inputs
 			program_inputs="--file1 $in1"
-			if [ "$ended" == "PE" ]
+			if test -f "$in2"
 			then
 				program_inputs="$program_inputs --file2 $in2"
 			fi
 			# Program command
-			AdapterRemoval \
+			command="AdapterRemoval \
 				--threads $SUBTHREADS \
 				--qualitybase $PHRED_BASE \
-				--basename $outdir/$name.$ended \
+				--basename $outdir/$name \
 				$program_inputs \
 				$adapterremoval_args \
- 				>> $outdir/program_log.txt 2>&1
+				> $current_proglog 2>&1"
+			echo -e "$command\n" > $current_command
+			eval $command
+			cat $current_command  | sed 's|\s\+| |g' >> $command_file
+			cat $current_proglog >> $program_log_file
+			if test -f "$in3"
+			then
+				command="AdapterRemoval \
+					--threads $SUBTHREADS \
+					--qualitybase $PHRED_BASE \
+					--basename $outdir/$name.unpaired \
+					--file1 $in3 \
+					$adapterremoval_args \
+					> $current_proglog 2>&1"
+				echo -e "$command\n" > $current_command
+				eval $command
+				cat $current_command  | sed 's|\s\+| |g' >> $command_file
+				cat $current_proglog >> $program_log_file
+			fi
 			#####################################################################################
-			echo -e "MONGER RUN $MODULE_NAME: Step $STEP_NAME for $combined_names complete."
+			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
 			#################
 			elapsed=`time_elapsed $start`
-			echo -e "  $STEP_NAME=$elapsed" >> $outdir/log.txt
-			echo "$STEP_NAME.$combined_names=complete" >> $outdir/resume.txt
+			echo -e "$STEP_NAME: $elapsed" >> $log_file
+			echo "$STEP_NAME.$name=complete" >> $resume_file
 		else
-			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" complete for file $combined_names. Skipping..."
+			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for file \"$name\". Skipping..."
 		fi
 	done
 	#####################################################################################
 	# Output names:
-	singletons="$outdir/$name.PE.singleton.truncated"
-	collapsed="$outdir/$name.PE.collapsed $outdir/$name.PE.collapsed.truncated"
-	pair1="$outdir/$name.PE.pair1.truncated"
-	pair2="$outdir/$name.PE.pair2.truncated"
-	single_end="$outdir/$name.SE.truncated"
+	singletons="$outdir/$name.singleton.truncated"
+	collapsed="$outdir/$name.collapsed $outdir/$name.collapsed.truncated"
+	pair1="$outdir/$name.pair1.truncated"
+	pair2="$outdir/$name.pair2.truncated"
+	single_end="$outdir/$name.unpaired.truncated"
 	# Record output info for downstream modules
-	if [ `echo $main_inputs | wc -w` -eq 2 ]
+	mkdir -p $outdir/outputs
+	if test -f "$in2"
 	then
 		# Combine single-end outputs (unpaired reads) into on file for downstream use
-		for singleton in $singletons
-		do
-			if test -f "$singleton"
-			then
-				cat $singleton >> $outdir/$name.PE.unpaired
-			fi
-		done
+		if test -f "$singletons"
+		then
+			cat $singletons > $outdir/$name.unpaired.fastq
+		fi
 		if [ "$collapse" == "true" ] && test -f "$collapsed"
 		then
-			cat $collapsed >> $outdir/$name.PE.unpaired
+			cat $collapsed >> $outdir/$name.unpaired.fastq
 		fi
-		if [ "$unpaired_inputs" != "" ]
+		if test -f "$single_end"
 		then
-			cat $single_end >> $outdir/$name.PE.unpaired
+			cat $single_end >> $outdir/$name.unpaired.fastq
 		fi
-		if [ "$unpaired" == "true" ]
+		if [ "$unpaired" == "true" ] && test -f "$outdir/$name.unpaired.fastq"
 		then
-			out3="$outdir/$name.PE.unpaired"
+			echo -e "$pair1\t$pair2\t$outdir/$name.unpaired.fastq\t$name" > $outdir/outputs/$name.outputs.txt
 		else
-			out3="-"
+			echo -e "$pair1\t$pair2\t$name" > $outdir/outputs/$name.outputs.txt
 		fi
-		# Add names of output paired and unpaired files to a textfile for downstream use
-		echo -e "$pair1\t$pair2\t$out3\t$name" > $outdir/$name.outputs.txt
 	else
 		# Add names of single-end files to a textfile for downstream use
-		echo -e "$single_end\t-\t-\t$name" >  $outdir/$name.outputs.txt
+		echo -e "$single_end\t$name" >  $outdir/outputs/$name.outputs.txt
 	fi
+	main_elapsed=`time_elapsed $main_start`
+	sed -i "s|$MODULE_NAME\:.*|$MODULE_NAME\: $main_elapsed|" $log_file
 	echo -e "MONGER RUN $MODULE_NAME: Complete."
 }
 

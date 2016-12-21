@@ -344,7 +344,7 @@ $AUTHOR_INFO"
 	log_file=$outdir/logs/$name.log.txt
 	resume_file=$outdir/resume/$name.resume.txt
 	program_log_file=$outdir/program_logs/$name.program_log.txt
-	current_proglog=$outdir/commands/$name.current_proglog.txt
+	current_proglog=$outdir/program_logs/$name.current_proglog.txt
 	command_file=$outdir/commands/$name.commands.txt
 	current_command=$outdir/commands/$name.current_command.txt
 	main_start=`date +%s`

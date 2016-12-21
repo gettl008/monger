@@ -291,7 +291,7 @@ $AUTHOR_INFO"
 		unpaired_output=$outdir/intermediates/$name.fxmt.F0x1F0x4.bam 
 		#################
 		elapsed=`time_elapsed $start`
-		echo -e "  $STEP_NAME=$elapsed" >> $log_file
+		echo -e "$STEP_NAME: $elapsed" >> $log_file
 		echo "$STEP_NAME.$name=complete" >> $resume_file
 	else
 		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for file \"$name\". Skipping..."

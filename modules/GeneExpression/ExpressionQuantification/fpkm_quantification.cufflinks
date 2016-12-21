@@ -319,7 +319,7 @@ $AUTHOR_INFO"
 	####################################
 	########## MAIN PROGRAM ############
 	####################################
-	echo -e " INPUT:$name" >> $log_file
+	echo -e "Inputs: $name" >> $log_file
 	# CUFFLINKS
 	for file in $inputs
 	do

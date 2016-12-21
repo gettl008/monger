@@ -354,12 +354,16 @@ $AUTHOR_INFO"
 	log_file=$outdir/logs/$name.log.txt
 	resume_file=$outdir/resume/$name.resume.txt
 	program_log_file=$outdir/program_logs/$name.program_log.txt
+	current_proglog=$outdir/program_logs/$name.current_proglog.txt
 	command_file=$outdir/commands/$name.commands.txt
+	current_command=$outdir/commands/$name.current_command.txt
+	main_start=`date +%s`
 	if ! test -f $resume_file || [ "$force" == "true" ]
 	then
-		echo -e "$MODULE_NAME" > $log_file
+		echo -e "$MODULE_NAME:" > $log_file
 		echo -e "# $MODULE_NAME" > $command_file
 		echo -e "$MODULE_NAME" > $resume_file
+		echo -e "$MODULE_NAME" > $program_log_file
 	fi
 
 	if ! test -f "$REFERENCE_FASTA"
@@ -385,7 +389,7 @@ $AUTHOR_INFO"
 	####################################
 	########## MAIN PROGRAM ############
 	####################################
-	echo -e " INPUT:$name" >> $log_file
+	echo -e "Inputs: $inputs" >> $log_file
 	# PROGRAM
 	##############################
 	STEP_NAME="tophat2"
@@ -397,7 +401,6 @@ $AUTHOR_INFO"
 		echo -e "$STEP_NAME:" >> $program_log_file
 		#####################################################################################
 		# Make sure program is installed
-		export PYTHONPATH=$INSTALL_DIR/lib/python2.7
 		if ! type "bowtie2" >/dev/null 2>/dev/null 
 		then
 			monger install $MODULE_NAME
@@ -414,9 +417,11 @@ $AUTHOR_INFO"
 			command="bowtie2-build \
 				$REFERENCE_FASTA \
 				$ref_base \
-				>> $program_log_file 2>&1"
+				> $current_proglog 2>&1"
+			echo -e "$command\n" > $current_command
 			eval $command
-			echo -e "$command\n" >> $command_file
+			cat $current_command  | sed 's|\s\+| |g' >> $command_file
+			cat $current_proglog >> $program_log_file
 		fi
 		# Construct program arguments if not provided in mongerscript
 		if test -f "$REFERENCE_GFF" && ! `echo "$tophat2_args" | grep -q '\-G'`
@@ -434,32 +439,36 @@ $AUTHOR_INFO"
 			fi
 		fi
 		# Program command
-		mkdir -p $outdir/main/$name
+		mkdir -p $outdir/intermediates/$name
 		command="tophat2 \
 			-p $SUBTHREADS \
 			--no-convert-bam \
-			-o $outdir/main/$name \
+			-o $outdir/intermediates/$name \
 			$tophat2_args \
 			$ref_base \
 			$program_inputs \
-			>> $program_log_file 2>&1"
+			> $current_proglog 2>&1"
+		echo -e "$command\n" > $current_command
 		eval $command
-		echo -e "$command\n" >> $command_file
-		ln -sf $outdir/main/$name/accepted_hits.sam $outdir/$name.sam
+		cat $current_command  | sed 's|\s\+| |g' >> $command_file
+		cat $current_proglog >> $program_log_file
+		mv $outdir/intermediates/$name/accepted_hits.sam $outdir/$name.sam
 		if test -f "$in3" && [ "$merge" == "false" ]
 		then
-			mkdir -p $outdir/unpaired/$name
+			mkdir -p $outdir/intermediates/$name.unpaired
 			command="tophat2 \
 				-p $SUBTHREADS \
 				--no-convert-bam \
-				-o $outdir/unpaired/$name \
+				-o $outdir/intermediates/$name.unpaired \
 				$tophat2_args \
 				$ref_base \
 				$in3 \
-				>> $program_log_file 2>&1"
+				> $current_proglog 2>&1"
+			echo -e "$command\n" > $current_command
 			eval $command
-			echo -e "$command\n" >> $command_file
-			ln -sf $outdir/unpaired/$name/accepted_hit.sam $outdir/$name.unpaired.sam
+			cat $current_command  | sed 's|\s\+| |g' >> $command_file
+			cat $current_proglog >> $program_log_file
+			mv $outdir/intermediates/$name.unpaired/accepted_hit.sam $outdir/$name.unpaired.sam
 		fi 
 		#####################################################################################
 		main_output=$outdir/$name.sam
@@ -467,7 +476,7 @@ $AUTHOR_INFO"
 		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
 		#################
 		elapsed=`time_elapsed $start`
-		echo -e "  $STEP_NAME=$elapsed" >> $log_file
+		echo -e "$STEP_NAME: $elapsed" >> $log_file
 		echo "$STEP_NAME.$name=complete" >> $resume_file
 	else
 		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for file \"$name\". Skipping..."
@@ -494,15 +503,19 @@ $AUTHOR_INFO"
 				-@ $SUBTHREADS \
 				-o $outdir/$name.sort.$output_format \
 				$main_output \
-				>> $program_log_file 2>&1"
+				> $current_proglog 2>&1"
+			echo -e "$command\n" > $current_command
 			eval $command
-			echo -e "$command\n" >> $command_file
+			cat $current_command  | sed 's|\s\+| |g' >> $command_file
+			cat $current_proglog >> $program_log_file
 			if [ "$output_format" == "bam" ]
 			then
 				command="samtools index $outdir/$name.$output_format \
-					>> $program_log_file 2>&1"
+					> $current_proglog 2>&1"
+				echo -e "$command\n" > $current_command
 				eval $command
-				echo -e "$command\n" >> $command_file
+				cat $current_command  | sed 's| \+| |g' >> $command_file
+				cat $current_proglog >> $program_log_file
 			fi
 			mv $main_output $outdir/intermediates/
 			if test -f "$unpaired_output"
@@ -512,15 +525,19 @@ $AUTHOR_INFO"
 					-@ $SUBTHREADS \
 					-o $outdir/$name.unpaired.sort.$output_format \
 					$unpaired_output \
-					>> $program_log_file 2>&1"
+					> $current_proglog 2>&1"
+				echo -e "$command\n" > $current_command
 				eval $command
-				echo -e "$command\n" >> $command_file
+				cat $current_command  | sed 's|\s\+| |g' >> $command_file
+				cat $current_proglog >> $program_log_file
 				if [ "$output_format" == "bam" ]
 				then
 					command="samtools index $outdir/$name.unpaired.$output_format \
-						>> $program_log_file 2>&1"
+						> $current_proglog 2>&1"
+					echo -e "$command\n" > $current_command
 					eval $command
-					echo -e "$command\n" >> $command_file
+					cat $current_command  | sed 's|\s\+| |g' >> $command_file
+					cat $current_proglog >> $program_log_file
 				fi
 				mv $unpaired_output $outdir/intermediates/
 			fi
@@ -530,7 +547,7 @@ $AUTHOR_INFO"
 			unpaired_output=$outdir/$name.unpaired.sort.$output_format
 			#################
 			elapsed=`time_elapsed $start`
-			echo -e "  $STEP_NAME=$elapsed" >> $log_file
+			echo -e "$STEP_NAME: $elapsed" >> $log_file
 			echo "$STEP_NAME.$name=complete" >> $resume_file
 		else
 			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for file \"$name\". Skipping..."
@@ -540,12 +557,15 @@ $AUTHOR_INFO"
 	fi
 	#####################################################################################
 	# Record output info for downstream modules
+	mkdir -p $outdir/outputs
 	if test -f "$unpaired_output"
 	then
-		echo -e "$main_output\t$unpaired_output\t$name" >  $outdir/$name.outputs.txt
+		echo -e "$main_output\t$unpaired_output\t$name" >  $outdir/outputs/$name.outputs.txt
 	else
-		echo -e "$main_output\t$name"  >  $outdir/$name.outputs.txt
+		echo -e "$main_output\t$name"  >  $outdir/outputs/$name.outputs.txt
 	fi
+	main_elapsed=`time_elapsed $main_start`
+	sed -i "s|$MODULE_NAME\:.*|$MODULE_NAME\: $main_elapsed|" $log_file
 	echo -e "MONGER RUN $MODULE_NAME: Complete."
 }
 

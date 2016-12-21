@@ -230,7 +230,7 @@ $AUTHOR_INFO"
 	####################################
 	########## MAIN PROGRAM ############
 	####################################
-	echo -e " INPUT:$name" >> $log_file
+	echo -e "Inputs: $inputs" >> $log_file
 	# PROGRAM
 	##############################
 	STEP_NAME="mpileup"
@@ -245,22 +245,28 @@ $AUTHOR_INFO"
 			--reference $REFERENCE_FASTA \
 			$inputs \
 			| bcftools call -vm -O z \
-			-o $outdir/intermediates/$name.vcf.gz" # \
-# 			>> $program_log_file 2>&1"
-					# --ploidy $PLOIDY \
+			-o $outdir/$name.vcf.gz \
+			> $current_proglog 2>&1"
+		echo -e "$command\n" > $current_command
 		eval $command
-		echo -e "$command\n" >> $command_file
-		command="tabix -p vcf $outdir/intermediates/$name.vcf.gz" # \
-# 			>> $program_log_file 2>&1"
+		cat $current_command  | sed 's|\s\+| |g' >> $command_file
+		cat $current_proglog >> $program_log_file
+		command="tabix \
+			-p vcf \
+			$outdir/$name.vcf.gz \
+			> $current_proglog 2>&1"
+		echo -e "$command\n" > $current_command
 		eval $command
-		echo -e "$command\n" >> $command_file
+		cat $current_command  | sed 's|\s\+| |g' >> $command_file
+		cat $current_proglog >> $program_log_file
 		command="bgzip -df \
 			-@ $SUBTHREADS \
-			$outdir/intermediates/$name.vcf.gz \
-			1> $outdir/$name.vcf" # \
-# 			2>> $program_log_file"
+			$outdir/$name.vcf.gz \
+			> $current_proglog 2>&1"
+		echo -e "$command\n" > $current_command
 		eval $command
-		echo -e "$command\n" >> $command_file
+		cat $current_command  | sed 's|\s\+| |g' >> $command_file
+		cat $current_proglog >> $program_log_file
 		#####################################################################################
 		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
 		main_output=$outdir/$name.vcf

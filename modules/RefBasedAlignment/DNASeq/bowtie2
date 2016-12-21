@@ -341,14 +341,20 @@ $AUTHOR_INFO"
 	mkdir -p $outdir/logs
 	mkdir -p $outdir/resume
 	mkdir -p $outdir/program_logs
+	mkdir -p $outdir/commands
 	log_file=$outdir/logs/$name.log.txt
 	resume_file=$outdir/resume/$name.resume.txt
 	program_log_file=$outdir/program_logs/$name.program_log.txt
-	
-	echo -e "$MODULE_NAME" > $log_file
+	current_proglog=$outdir/program_logs/$name.current_proglog.txt
+	command_file=$outdir/commands/$name.commands.txt
+	current_command=$outdir/commands/$name.current_command.txt
+	main_start=`date +%s`
 	if ! test -f $resume_file || [ "$force" == "true" ]
 	then
-		echo "$MODULE_NAME" > $resume_file
+		echo -e "$MODULE_NAME:" > $log_file
+		echo -e "# $MODULE_NAME" > $command_file
+		echo -e "$MODULE_NAME" > $resume_file
+		echo -e "$MODULE_NAME" > $program_log_file
 	fi
 
 	if ! type "samtools" >/dev/null 2>/dev/null 
@@ -369,28 +375,16 @@ $AUTHOR_INFO"
 	####################################
 	########## MAIN PROGRAM ############
 	####################################
-	if test -f "$in2"
-	then
-		ended="PE"
-	else
-		ended="SE"
-	fi
-	for part in $in1 $in2 $in3
-	do
-		part_base=`basename $part`
-		current_basenames="$current_basenames $part_base"
-	done
-	combined_names=`echo $current_basenames | tr " " "_"`
-	echo -e " INPUT:$combined_names.$ended" >> $outdir/log.txt
+	echo -e "Inputs: $inputs" >> $log_file
 	# PROGRAM
 	##############################
 	STEP_NAME="bowtie2"
-	if [ "`grep "$STEP_NAME.$combined_names=complete" $outdir/resume.txt`" == "" ] || [ "$force" == "true" ]
+	if [ "`grep "$STEP_NAME.$name=complete" $resume_file`" == "" ] || [ "$force" == "true" ]
 	then
 		# Process start time
 		start=`date +%s`
-		echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for $combined_names."
-		echo -e "$STEP_NAME:" >> $outdir/program_log.txt
+		echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for \"$name\"."
+		echo -e "$STEP_NAME:" >> $program_log_file
 		#####################################################################################
 		# Make sure program is installed
 		if ! type "bowtie2" >/dev/null 2>/dev/null 
@@ -402,13 +396,18 @@ $AUTHOR_INFO"
 		if ! test -f $ref_base.1.bt2 \
 			|| ! test -f $ref_base.rev.1.bt2
 		then
-			bowtie2-build \
+			command="bowtie2-build \
 				$REFERENCE_FASTA \
-				$ref_base
+				$ref_base \
+				> $current_proglog 2>&1"
+			echo -e "$command\n" > $current_command
+			eval $command
+			cat $current_command  | sed 's|\s\+| |g' >> $command_file
+			cat $current_proglog >> $program_log_file
 		fi
 		# Construct program arguments if not provided in mongerscript
 		# Define how program takes in inputs
-		if [ "$ended" == "PE" ]
+		if test -f "$in2"
 		then
 			program_inputs="-1 $in1 -2 $in2"
 			if test -f "$in3" && [ "$merge" == "true" ]
@@ -419,103 +418,129 @@ $AUTHOR_INFO"
 			program_inputs="-U $in1"
 		fi
 		# Program command
-		bowtie2 \
+		command="bowtie2 \
 			-p $SUBTHREADS \
 			--phred$PHRED_BASE \
 			-x $REFERENCE_FASTA \
 			$program_inputs \
 			$bowtie2_args \
-			1> $outdir/$name.$ended.$STEP_NAME.sam 2> $outdir/program_log.txt
+			1> $outdir/$name.sam \
+			2> $current_proglog"
+		echo -e "$command\n" > $current_command
+		eval $command
+		cat $current_command  | sed 's|\s\+| |g' >> $command_file
+		cat $current_proglog >> $program_log_file
 		if test -f "$in3" && [ "$merge" == "false" ]
 		then
-			bowtie2 \
+			"bowtie2 \
 				-p $SUBTHREADS \
 				--phred$PHRED_BASE \
 				-x $REFERENCE_FASTA \
-				$in3 \
+				-U $in3 \
 				$bowtie2_args \
-				1> $outdir/$name.$ended.unpaired.$STEP_NAME.sam 2> $outdir/program_log.txt
+				1> $outdir/$name.unpaired.sam \
+				2> $current_proglog"
+			echo -e "$command\n" > $current_command
+			eval $command
+			cat $current_command  | sed 's|\s\+| |g' >> $command_file
+			cat $current_proglog >> $program_log_file
 		fi
 		#####################################################################################
-		main_output=$outdir/$name.$ended.$STEP_NAME.sam
-		unpaired_output=$outdir/$name.$ended.unpaired.$STEP_NAME.sam
-		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for $combined_names complete."
+		main_output=$outdir/$name.sam
+		unpaired_output=$outdir/$name.unpaired.sam
+		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
 		#################
 		elapsed=`time_elapsed $start`
-		echo -e "  $STEP_NAME=$elapsed" >> $outdir/log.txt
-		echo "$STEP_NAME.$combined_names=complete" >> $outdir/resume.txt
+		echo -e "$STEP_NAME: $elapsed" >> $log_file
+		echo "$STEP_NAME.$name=complete" >> $outdir/resume.txt
 	else
-		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" complete for file $combined_names. Skipping..."
-		main_output=$outdir/$name.$ended.$STEP_NAME.sam
-		unpaired_output=$outdir/$name.$ended.unpaired.$STEP_NAME.sam
+		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for file \"$name\". Skipping..."
+		main_output=$outdir/$name.sam
+		unpaired_output=$outdir/$name.unpaired.sam
 	fi
 	##############################
 	STEP_NAME="sort_alignments"
 	if [ "sort" != "" ]
 	then
-		if [ "`grep "$STEP_NAME.$combined_names=complete" $outdir/resume.txt`" == "" ] || [ "$force" == "true" ]
+		if [ "`grep "$STEP_NAME.$name=complete" $resume_file`" == "" ] || [ "$force" == "true" ]
 		then
 			# Process start time
 			start=`date +%s`
-			echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for $combined_names."
-			echo -e "$STEP_NAME:" >> $outdir/program_log.txt
+			echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for \"$name\"."
+			echo -e "$STEP_NAME:" >> $program_log_file
 			#####################################################################################
 			if [ "sort" == "n" ]
 			then
 				in_sort="-$sort"
 			fi
-			samtools sort \
+			command="samtools sort \
 				$insort \
 				-@ $SUBTHREADS \
-				-o $outdir/$name.$ended.$output_format \
+				-o $outdir/$name.sort.$output_format \
 				$main_output \
-				2>> $outdir/program_log.txt
+				> $current_proglog 2>&1"
+			echo -e "$command\n" > $current_command
+			eval $command
+			cat $current_command  | sed 's|\s\+| |g' >> $command_file
+			cat $current_proglog >> $program_log_file
 			if [ "$output_format" == "bam" ]
 			then
-				samtools index $outdir/$name.$ended.$output_format
+				command="samtools index $outdir/$name.$output_format \
+					> $current_proglog 2>&1"
+				echo -e "$command\n" > $current_command
+				eval $command
+				cat $current_command  | sed 's| \+| |g' >> $command_file
+				cat $current_proglog >> $program_log_file
 			fi
 			mv $main_output $outdir/intermediates/
 			if test -f "$unpaired_output"
 			then
-				samtools sort \
+				command="samtools sort \
 					$sort \
 					-@ $SUBTHREADS \
-					-o $outdir/$name.$ended.unpaired.$output_format \
+					-o $outdir/$name.unpaired.sort.$output_format \
 					$unpaired_output \
-					2>> $outdir/program_log.txt
+					> $current_proglog 2>&1"
+				echo -e "$command\n" > $current_command
+				eval $command
+				cat $current_command  | sed 's|\s\+| |g' >> $command_file
+				cat $current_proglog >> $program_log_file
 				if [ "$output_format" == "bam" ]
 				then
-					samtools index $outdir/$name.$ended.unpaired.$output_format
+					command="samtools index $outdir/$name.unpaired.$output_format \
+						> $current_proglog 2>&1"
+					echo -e "$command\n" > $current_command
+					eval $command
+					cat $current_command  | sed 's|\s\+| |g' >> $command_file
+					cat $current_proglog >> $program_log_file
 				fi
 				mv $unpaired_output $outdir/intermediates/
 			fi
 			#####################################################################################
-			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for $combined_names complete."
-			main_output=$outdir/$name.$ended.$output_format
-			if test -f "$outdir/$name.$ended.unpaired.$output_format"
-			then
-				unpaired_output=$outdir/$name.$ended.unpaired.$output_format
-			else
-				unpaired_output="-"
-			fi
+			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
+			main_output=$outdir/$name.sort.$output_format
+			unpaired_output=$outdir/$name.unpaired.sort.$output_format
 			#################
 			elapsed=`time_elapsed $start`
-			echo -e "  $STEP_NAME=$elapsed" >> $outdir/log.txt
-			echo "$STEP_NAME.$combined_names=complete" >> $outdir/resume.txt
+			echo -e "$STEP_NAME: $elapsed" >> $log_file
+			echo "$STEP_NAME.$name=complete" >> $resume_file
 		else
-			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" complete for file $combined_names. Skipping..."
-			main_output=$outdir/$name.$ended.$output_format
-			if test -f "$outdir/$name.$ended.unpaired.$output_format"
-			then
-				unpaired_output=$outdir/$name.$ended.unpaired.$output_format
-			else
-				unpaired_output="-"
-			fi
+			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for file \"$name\". Skipping..."
+			main_output=$outdir/$name.sort.$output_format
+			unpaired_output=$outdir/$name.unpaired.sort.$output_format
 		fi
 	fi
 	#####################################################################################
 	# Record output info for downstream modules
-	echo -e "$main_output\t-\t$unpaired_output\t$name" >  $outdir/$name.outputs.txt
+	mkdir -p $outdir/outputs
+	if test -f "$unpaired_output"
+	then
+		echo -e "$main_output\t$unpaired_output\t$name" >  $outdir/outputs/$name.outputs.txt
+	else
+		echo -e "$main_output\t$name"  >  $outdir/outputs/$name.outputs.txt
+	fi
+	main_elapsed=`time_elapsed $main_start`
+	sed -i "s|$MODULE_NAME\:.*|$MODULE_NAME\: $main_elapsed|" $log_file
 	echo -e "MONGER RUN $MODULE_NAME: Complete."
 }
 
