@@ -98,24 +98,36 @@ Noah Gettle 2016"
 		tar -zxvf $DOWNLOAD_DIR/Python-2.7.12.tgz
 		cd $DOWNLOAD_DIR/Python-2.7.12
 		./configure --prefix=$INSTALL_DIR --with-threads --enable-shared && make && make install altinstall
-		rm $DOWNLOAD_DIR/Python-2.7.12.tgz
-		if `grep -q "export PYTHONPATH=" ~/.bashrc`
+		if ! type "python2.7" >/dev/null 2>/dev/null 
 		then
-			sed -i "s|export PYTHONPATH=.*|export PYTHONPATH=$INSTALL_DIR/lib/python2.7\:$PYTHONPATH|" ~/.bashrc
-		else
-			echo "export PYTHONPATH=$INSTALL_DIR/lib/python2.7:$PYTHONPATH" >> ~/.bashrc
+			echo "MONGER INSTALL ERROR: Something went wrong when installing Python2.7. Sorry, but you may need to try manual installation."
+			exit 1
 		fi
+		rm $DOWNLOAD_DIR/Python-2.7.12.tgz
+		pythondir=$INSTALL_DIR
 	else
+		pythondir=`which python2`
+		pythondir=`dirname $pythondir`
+		pythondir=`dirname $pythondir`
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
 	fi
-
+	if `grep -q "export PYTHONPATH=" ~/.bashrc`
+	then
+		if `grep -q "export PYTHONPATH=*$pythondir/lib/python2.7*" ~/.bashrc`
+		then
+			sed -i "s|export PYTHONPATH=.*|export PYTHONPATH=$INSTALL_DIR/lib/python2.7\:$PYTHONPATH|" ~/.bashrc
+		fi
+	else
+		echo "export PYTHONPATH=$INSTALL_DIR/lib/python2.7:$PYTHONPATH" >> ~/.bashrc
+	fi
+	. ~/.bashrc
 	#######
 	# PIP #
 	#######
-	pythondir=`which python2`
-	pythondir=`dirname $pythondir`
-	pythondir=`dirname $pythondir`
-	export PYTHONPATH=$pythondir/lib/python2.7
+	# pythondir=`which python2`
+	# pythondir=`dirname $pythondir`
+	# pythondir=`dirname $pythondir`
+	# export PYTHONPATH=$pythondir/lib/python2.7
 	if ! type "pip2" >/dev/null 2>/dev/null || [ "$FORCE" == "TRUE" ]
 	then
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME PIP."
