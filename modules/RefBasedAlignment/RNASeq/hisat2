@@ -403,10 +403,10 @@ $AUTHOR_INFO"
 		ref_base=${REFERENCE_FASTA%.*}
 		if ! test -f $ref_base.1.ht2
 		then
-			if test -f "$REFERENCE_GFF" && ! `echo "$hisat2build_args" | grep -q '\-\-exon'`
+			if test -f "$REFERENCE_GTF" && ! `echo "$hisat2build_args" | grep -q '\-\-exon'`
 			then
-				hisat2_extract_splice_sites.py $REFERNECE_GFF > $ref_base.ss.ht
-				hisat2_extract_exons.py $REFERNECE_GFF > $ref_base.exons.ht
+				hisat2_extract_splice_sites.py $REFERENCE_GTF > $ref_base.ss.ht
+				hisat2_extract_exons.py $REFERENCE_GTF > $ref_base.exons.ht
 				hisat2build_args="$hisat2build_args --exon $ref_base.exons.ht --ss $ref_base.ss.ht"
 				if ! `echo "$hisat2_args" | grep -q '\-\-known-splicesite-infile'`
 				then
