@@ -112,6 +112,10 @@ Noah Gettle 2016"
 	#######
 	# PIP #
 	#######
+	pythondir=`which python2`
+	pythondir=`dirname $pythondir`
+	pythondir=`dirname $pythondir`
+	export PYTHONPATH=$pythondir/lib/python2.7
 	if ! type "pip2" >/dev/null 2>/dev/null || [ "$FORCE" == "TRUE" ]
 	then
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME PIP."
