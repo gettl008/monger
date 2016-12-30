@@ -121,6 +121,7 @@ Noah Gettle 2016"
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME PIP."
 		cd $DOWNLOAD_DIR
 		rm -rf $DOWNLOAD_DIR/get-pip.py*
+		rm -rf $pythondir/lib/python2.7/site-packages/pip*
 		wget https://bootstrap.pypa.io/get-pip.py
 		python2.7 get-pip.py --prefix $INSTALL_DIR
 	else

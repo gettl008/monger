@@ -131,14 +131,17 @@ $AUTHOR_INFO"
 	#######
 	# PIP #
 	#######
-	if ! type "pip" >/dev/null 2>/dev/null || [ "$FORCE" == "TRUE" ]
+	pythondir=`which python2`
+	pythondir=`dirname $pythondir`
+	pythondir=`dirname $pythondir`
+	export PYTHONPATH=$pythondir/lib/python3.*
+	if ! type "pip3" >/dev/null 2>/dev/null || [ "$FORCE" == "TRUE" ]
 	then
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME PIP."
 		cd $DOWNLOAD_DIR
-		if ! test -f $DOWNLOAD_DIR/get-pip.py
-		then
-			wget https://bootstrap.pypa.io/get-pip.py
-		fi
+		rm -rf $DOWNLOAD_DIR/get-pip.py
+		wget https://bootstrap.pypa.io/get-pip.py
+		rm -rf $pythondir/lib/python3.*/site-packages/pip*
 		python3 get-pip.py --prefix $INSTALL_DIR
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME PIP already installed. Skipping..."
