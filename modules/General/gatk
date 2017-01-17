@@ -125,6 +125,11 @@ $AUTHOR_INFO"
 			sed -i "s|alias gatk=.*|$newline|" ~/.bashrc
 		fi
 		. ~/.bashrc
+		if ! type "gatk" >/dev/null 2>/dev/null 
+		then
+			echo "MONGER INSTALL ERROR: Something went wrong when installing GATK. Sorry, but you may need to try manual installation."
+			exit 1
+		fi
 		##############################
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."

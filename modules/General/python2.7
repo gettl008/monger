@@ -100,7 +100,7 @@ Noah Gettle 2016"
 		./configure --prefix=$INSTALL_DIR --with-threads --enable-shared && make && make install altinstall
 		if ! type "python2.7" >/dev/null 2>/dev/null 
 		then
-			echo "MONGER INSTALL ERROR: Something went wrong when installing Python2.7. Sorry, but you may need to try manual installation."
+			echo "MONGER INSTALL ERROR: Something went wrong when installing PYTHON2.7. Sorry, but you may need to try manual installation."
 			exit 1
 		fi
 		rm $DOWNLOAD_DIR/Python-2.7.12.tgz
@@ -115,19 +115,18 @@ Noah Gettle 2016"
 	then
 		if `grep -q "export PYTHONPATH=*$pythondir/lib/python2.7*" ~/.bashrc`
 		then
-			sed -i "s|export PYTHONPATH=.*|export PYTHONPATH=$INSTALL_DIR/lib/python2.7\:$PYTHONPATH|" ~/.bashrc
+			sed -i "s|export PYTHONPATH=.*|export PYTHONPATH=$pythondir/lib/python2.7\:$PYTHONPATH|" ~/.bashrc
 		fi
 	else
 		echo "export PYTHONPATH=$INSTALL_DIR/lib/python2.7:$PYTHONPATH" >> ~/.bashrc
 	fi
-	. ~/.bashrc
 	#######
 	# PIP #
 	#######
-	# pythondir=`which python2`
-	# pythondir=`dirname $pythondir`
-	# pythondir=`dirname $pythondir`
-	# export PYTHONPATH=$pythondir/lib/python2.7
+	pythondir=`which python2`
+	pythondir=`dirname $pythondir`
+	pythondir=`dirname $pythondir`
+	export PYTHONPATH=$pythondir/lib/python2.7
 	if ! type "pip2" >/dev/null 2>/dev/null || [ "$FORCE" == "TRUE" ]
 	then
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME PIP."
@@ -135,7 +134,13 @@ Noah Gettle 2016"
 		rm -rf $DOWNLOAD_DIR/get-pip.py*
 		rm -rf $pythondir/lib/python2.7/site-packages/pip*
 		wget https://bootstrap.pypa.io/get-pip.py
-		python2.7 get-pip.py --prefix $INSTALL_DIR
+		python2.7 $DOWNLOAD_DIR/get-pip.py --prefix $INSTALL_DIR
+		if ! type "pip2" >/dev/null 2>/dev/null 
+		then
+			echo "MONGER INSTALL ERROR: Something went wrong when installing PIP2. Sorry, but you may need to try manual installation."
+			exit 1
+		fi
+		pip2 install --upgrade setuptools
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME PIP already installed. Skipping..."
 	fi

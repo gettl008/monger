@@ -117,6 +117,11 @@ $AUTHOR_INFO"
 	then
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
 		pip install HTSeq
+		if ! type "htseq-count" >/dev/null 2>/dev/null 
+		then
+			echo "MONGER INSTALL ERROR: Something went wrong when installing HTSEQ. Sorry, but you may need to try manual installation."
+			exit 1
+		fi
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
 	fi

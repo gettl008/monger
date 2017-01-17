@@ -95,11 +95,17 @@ Noah Gettle 2016"
 		then
 			wget ftp://ftp.gnu.org/gnu/parallel/parallel-latest.tar.bz2
 		fi
+		rm -rf $DOWNLOAD_DIR/parallel-20*
 		tar -xjvf $DOWNLOAD_DIR/parallel-latest.tar.bz2
 		cd $DOWNLOAD_DIR/parallel-20*
 		./configure --prefix $INSTALL_DIR && make && make install
 		parallel --citation
 		rm -rf $DOWNLOAD_DIR/parallel-latest.tar.bz2
+		if ! type "parallel" >/dev/null 2>/dev/null 
+		then
+			echo "MONGER INSTALL ERROR: Something went wrong when installing PARALLEL. Sorry, but you may need to try manual installation."
+			exit 1
+		fi
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
 	fi

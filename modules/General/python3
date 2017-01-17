@@ -95,6 +95,24 @@ $AUTHOR_INFO"
 	####### INSTALL DEPENDENCIES #######
 	####################################
 
+	# ##########
+	# # LIBBZ2 #
+	# ##########
+	# libbz2afile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libbz2.a' | head -1`
+	# if [ "$libbz2afile" == "" ]
+	# then
+	# 	echo -e "> MONGER INSTALL: Installing LIBBZ2."
+	# 	cd $DOWNLOAD_DIR
+	# 	if ! test -f $DOWNLOAD_DIR/bzip2-1.0.6.tar.gz
+	# 	then
+	# 		wget http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz
+	# 	fi
+	# 	tar -zxvf $DOWNLOAD_DIR/bzip2-1.0.6.tar.gz
+	# 	cd $DOWNLOAD_DIR/bzip2-1.0.6
+	# 	make
+	# 	make install PREFIX=$INSTALL_DIR
+	# fi
+	#
 	###############################################
 
 	####################################
@@ -117,21 +135,36 @@ $AUTHOR_INFO"
 		./configure --prefix=$INSTALL_DIR
 		make
 		make install
-		rm -rf $DOWNLOAD_DIR/Python-3.5.2.tgz
-		if `grep -q "export PYTHONPATH=" ~/.bashrc`
+		if ! type "python3" >/dev/null 2>/dev/null 
 		then
-			sed -i "s|export PYTHONPATH=.*|export PYTHONPATH=$INSTALL_DIR/lib/python3.5\:$PYTHONPATH|" ~/.bashrc
-		else
-			echo "export PYTHONPATH=$INSTALL_DIR/lib/python3.5:$PYTHONPATH" >> ~/.bashrc
+			echo "MONGER INSTALL ERROR: Something went wrong when installing PYTHON3. Sorry, but you may need to try manual installation."
+			exit 1
 		fi
+		rm -rf $DOWNLOAD_DIR/Python-3.5.2.tgz
+		pythondir=$INSTALL_DIR/lib/python3.5
+	else
+		pythondir=`which python3`
+		pythondir=`dirname $pythondir`
+		pythondir=`dirname $pythondir`
+		pythondir=$pythondir/lib/python3.*
+		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
+	fi
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
 	fi
-	
+	if `grep -q "export PYTHONPATH=" ~/.bashrc`
+	then
+		if `grep -q "export PYTHONPATH=*$pythondir*" ~/.bashrc`
+		then
+			sed -i "s|export PYTHONPATH=.*|export PYTHONPATH=$pythondir\:$PYTHONPATH|" ~/.bashrc
+		fi
+	else
+		echo "export PYTHONPATH=$pythondir:$PYTHONPATH" >> ~/.bashrc
+	fi
 	#######
 	# PIP #
 	#######
-	pythondir=`which python2`
+	pythondir=`which python3`
 	pythondir=`dirname $pythondir`
 	pythondir=`dirname $pythondir`
 	export PYTHONPATH=$pythondir/lib/python3.*
@@ -139,10 +172,16 @@ $AUTHOR_INFO"
 	then
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME PIP."
 		cd $DOWNLOAD_DIR
-		rm -rf $DOWNLOAD_DIR/get-pip.py
+		rm -rf $DOWNLOAD_DIR/get-pip.py*
 		wget https://bootstrap.pypa.io/get-pip.py
 		rm -rf $pythondir/lib/python3.*/site-packages/pip*
-		python3 get-pip.py --prefix $INSTALL_DIR
+		python3 $DOWNLOAD_DIR/get-pip.py --prefix $INSTALL_DIR
+		if ! type "pip3" >/dev/null 2>/dev/null 
+		then
+			echo "MONGER INSTALL ERROR: Something went wrong when installing PIP3. Sorry, but you may need to try manual installation."
+			exit 1
+		fi
+		pip3 install --upgrade setuptools
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME PIP already installed. Skipping..."
 	fi

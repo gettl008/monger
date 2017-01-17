@@ -102,6 +102,11 @@ Noah Gettle 2016"
 		set -e
 		make install
 		rm $DOWNLOAD_DIR/perl-5.24.0.tar.gz
+		if ! type "perl" >/dev/null 2>/dev/null 
+		then
+			echo "MONGER INSTALL ERROR: Something went wrong when installing PERL. Sorry, but you may need to try manual installation."
+			exit 1
+		fi
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
 		mkdir -p $INSTALL_DIR/lib/perl5

@@ -102,6 +102,11 @@ Noah Gettle 2016"
 		make
 		cp $DOWNLOAD_DIR/bcftools-1.3.1/bcftools $DOWNLOAD_DIR/bcftools-1.3.1/plot-vcfstats $DOWNLOAD_DIR/bcftools-1.3.1/vcfutils.pl $INSTALL_DIR/bin/
 		rm $DOWNLOAD_DIR/bcftools-1.3.1.tar.bz2
+		if ! type "bcftools" >/dev/null 2>/dev/null 
+		then
+			echo "MONGER INSTALL ERROR: Something went wrong when installing BCFTOOLS. Sorry, but you may need to try manual installation."
+			exit 1
+		fi
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
 	fi

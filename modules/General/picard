@@ -103,6 +103,11 @@ Noah Gettle 2016"
 			sed -i "s|alias picard=.*|$newline|" ~/.bashrc
 		fi
 		. ~/.bashrc
+		if ! type "picard.jar" >/dev/null 2>/dev/null 
+		then
+			echo "MONGER INSTALL ERROR: Something went wrong when installing PICARD. Sorry, but you may need to try manual installation."
+			exit 1
+		fi
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
 	fi
