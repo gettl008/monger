@@ -421,147 +421,146 @@ $AUTHOR_INFO"
 	########## MAIN PROGRAM ############
 	####################################
 	echo -e "Inputs: $inputs" >> $log_file
-		# PROGRAM
-		STEP_NAME=identify_adapters
-		if [ "$identify_adapters" == "true" ] && test -f "$in2"
-		then
-			if [ "`grep "$STEP_NAME.$name=complete" $resume_file`" == "" ] || [ "$force" == "true" ]
-			then
-				# Process start time
-				start=`date +%s`
-				echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for \"$name\"."
-				echo -e "$STEP_NAME:" >> $program_log_file
-				#################
-				# Make sure program is installed
-				if ! type "AdapterRemoval" >/dev/null 2>/dev/null 
-				then
-					monger install adapterremoval
-				fi
-				#################
-				# Program step command
-				mkdir -p $outdir/adapters
-				####
-				command="AdapterRemoval --identify-adapters \
-					--file1 $in1 \
-					--file2 $in2 \
-					> $outdir/adapters/$name.adapters.txt 2>&1"
-				echo -e "$command\n" > $current_command
-				eval $command
-				cat $current_command  | sed 's|\s\+| |g' >> $command_file
-				adapter1=`grep "\-\-adapter1" $outdir/adapters/$name.adapters.txt | cut -d" " -f5`
-				adapter2=`grep "\-\-adapter2" $outdir/adapters/$name.adapters.txt | cut -d" " -f5`
-				echo -e ">adapter1\n$adapter1\n>adapter2\n$adapter2" >  $outdir/adapters/$name.adapters.fa
-				#################
-				echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
-				elapsed=`time_elapsed $start`
-				echo -e "$STEP_NAME: $elapsed" >> $log_file
-				echo "$STEP_NAME.$name=complete" >> $resume_file
-			else
-				echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for \"$name\". Skipping..."
-			fi
-			adapters=$outdir/adapters/$name.adapters.fa
-		
-		fi
-		STEP_NAME=adapterremoval
+	# PROGRAM
+	STEP_NAME=identify_adapters
+	if [ "$identify_adapters" == "true" ] && test -f "$in2"
+	then
 		if [ "`grep "$STEP_NAME.$name=complete" $resume_file`" == "" ] || [ "$force" == "true" ]
 		then
 			# Process start time
 			start=`date +%s`
 			echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for \"$name\"."
 			echo -e "$STEP_NAME:" >> $program_log_file
-			#####################################################################################
+			#################
 			# Make sure program is installed
 			if ! type "AdapterRemoval" >/dev/null 2>/dev/null 
 			then
-				monger install $MODULE_NAME
+				monger install adapterremoval
 			fi
-			# Change adapter input from fasta to format program can use
-			if [ "$adapters" != "" ]
-			then
-				adapter1=`head -2 $adapters | tail -1`
-				adapter_input="--adapter1 $adapter1"
-				if test -f "$in2"
-				then
-					adapter2=`head -4 $adapters | tail -1`
-					adapter_input="$adapter_input --adapter2 $adapter2"
-				fi
-			fi
-			# Construct program arguments if not provided in mongerscript
-			if [ "$trim_adapters" == "true" ] \
-				&& ! `echo "$adapterremoval_args" | grep -q "\-\-adapter1"`
-			then
-				adapterremoval_args="$adapterremoval_args $adapter_input"
-			fi
-			if [ "$trim_ends" == "true" ] \
-				&& ! `echo "$adapterremoval_args" | grep -q "\-\-trimns"`
-			then
-				adapterremoval_args="$adapterremoval_args --trimns"
-			fi
-			if [ "$trim_ends" == "true" ] \
-				&& ! `echo "$adapterremoval_args" | grep -q "\-\-trimqualities"`
-			then
-				adapterremoval_args="$adapterremoval_args --trimqualities"
-			fi
-			if [ "$trim_ends" == "true" ] \
-				&& ! `echo "$adapterremoval_args" | grep -q "\-\-minquality"`
-			then
-				adapterremoval_args="$adapterremoval_args --minquality $min_quality"
-			fi
-			if [ "$collapse" == "true" ] && [ "$ended" == "PE" ] \
-				&& ! `echo "$adapterremoval_args" | grep -q "\-\-collapse"`
-			then
-				adapterremoval_args="$adapterremoval_args --collapse"
-			fi
-			if ! `echo "$adapterremoval_args" | grep -q "\-\-min_length"`
-			then
-				adapterremoval_args="$adapterremoval_args --minlength $min_length"
-			fi
-			if ! `echo "$adapterremoval_args" | grep -q "\-\-maxns"`
-			then
-				adapterremoval_args="$adapterremoval_args --maxns $max_Ns"
-			fi
-			# Define how program takes in inputs
-			program_inputs="--file1 $in1"
+			#################
+			# Program step command
+			mkdir -p $outdir/adapters
+			####
+			command="AdapterRemoval --identify-adapters \
+				--file1 $in1 \
+				--file2 $in2 \
+				> $outdir/adapters/$name.adapters.txt 2>&1"
+			echo -e "$command\n" > $current_command
+			eval $command
+			cat $current_command  | sed 's|\s\+| |g' >> $command_file
+			adapter1=`grep "\-\-adapter1" $outdir/adapters/$name.adapters.txt | cut -d" " -f5`
+			adapter2=`grep "\-\-adapter2" $outdir/adapters/$name.adapters.txt | cut -d" " -f5`
+			echo -e ">adapter1\n$adapter1\n>adapter2\n$adapter2" >  $outdir/adapters/$name.adapters.fa
+			#################
+			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
+			elapsed=`time_elapsed $start`
+			echo -e "$STEP_NAME: $elapsed" >> $log_file
+			echo "$STEP_NAME.$name=complete" >> $resume_file
+		else
+			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for \"$name\". Skipping..."
+		fi
+		adapters=$outdir/adapters/$name.adapters.fa
+	
+	fi
+	STEP_NAME=adapterremoval
+	if [ "`grep "$STEP_NAME.$name=complete" $resume_file`" == "" ] || [ "$force" == "true" ]
+	then
+		# Process start time
+		start=`date +%s`
+		echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for \"$name\"."
+		echo -e "$STEP_NAME:" >> $program_log_file
+		#####################################################################################
+		# Make sure program is installed
+		if ! type "AdapterRemoval" >/dev/null 2>/dev/null 
+		then
+			monger install $MODULE_NAME
+		fi
+		# Change adapter input from fasta to format program can use
+		if [ "$adapters" != "" ]
+		then
+			adapter1=`head -2 $adapters | tail -1`
+			adapter_input="--adapter1 $adapter1"
 			if test -f "$in2"
 			then
-				program_inputs="$program_inputs --file2 $in2"
+				adapter2=`head -4 $adapters | tail -1`
+				adapter_input="$adapter_input --adapter2 $adapter2"
 			fi
-			# Program command
+		fi
+		# Construct program arguments if not provided in mongerscript
+		if [ "$trim_adapters" == "true" ] \
+			&& ! `echo "$adapterremoval_args" | grep -q "\-\-adapter1"`
+		then
+			adapterremoval_args="$adapterremoval_args $adapter_input"
+		fi
+		if [ "$trim_ends" == "true" ] \
+			&& ! `echo "$adapterremoval_args" | grep -q "\-\-trimns"`
+		then
+			adapterremoval_args="$adapterremoval_args --trimns"
+		fi
+		if [ "$trim_ends" == "true" ] \
+			&& ! `echo "$adapterremoval_args" | grep -q "\-\-trimqualities"`
+		then
+			adapterremoval_args="$adapterremoval_args --trimqualities"
+		fi
+		if [ "$trim_ends" == "true" ] \
+			&& ! `echo "$adapterremoval_args" | grep -q "\-\-minquality"`
+		then
+			adapterremoval_args="$adapterremoval_args --minquality $min_quality"
+		fi
+		if [ "$collapse" == "true" ] && [ "$ended" == "PE" ] \
+			&& ! `echo "$adapterremoval_args" | grep -q "\-\-collapse"`
+		then
+			adapterremoval_args="$adapterremoval_args --collapse"
+		fi
+		if ! `echo "$adapterremoval_args" | grep -q "\-\-min_length"`
+		then
+			adapterremoval_args="$adapterremoval_args --minlength $min_length"
+		fi
+		if ! `echo "$adapterremoval_args" | grep -q "\-\-maxns"`
+		then
+			adapterremoval_args="$adapterremoval_args --maxns $max_Ns"
+		fi
+		# Define how program takes in inputs
+		program_inputs="--file1 $in1"
+		if test -f "$in2"
+		then
+			program_inputs="$program_inputs --file2 $in2"
+		fi
+		# Program command
+		command="AdapterRemoval \
+			--threads $SUBTHREADS \
+			--qualitybase $PHRED_BASE \
+			--basename $outdir/$name \
+			$program_inputs \
+			$adapterremoval_args \
+			> $current_proglog 2>&1"
+		echo -e "$command\n" > $current_command
+		eval $command
+		cat $current_command  | sed 's|\s\+| |g' >> $command_file
+		cat $current_proglog >> $program_log_file
+		if test -f "$in3"
+		then
 			command="AdapterRemoval \
 				--threads $SUBTHREADS \
 				--qualitybase $PHRED_BASE \
-				--basename $outdir/$name \
-				$program_inputs \
+				--basename $outdir/$name.unpaired \
+				--file1 $in3 \
 				$adapterremoval_args \
 				> $current_proglog 2>&1"
 			echo -e "$command\n" > $current_command
 			eval $command
 			cat $current_command  | sed 's|\s\+| |g' >> $command_file
 			cat $current_proglog >> $program_log_file
-			if test -f "$in3"
-			then
-				command="AdapterRemoval \
-					--threads $SUBTHREADS \
-					--qualitybase $PHRED_BASE \
-					--basename $outdir/$name.unpaired \
-					--file1 $in3 \
-					$adapterremoval_args \
-					> $current_proglog 2>&1"
-				echo -e "$command\n" > $current_command
-				eval $command
-				cat $current_command  | sed 's|\s\+| |g' >> $command_file
-				cat $current_proglog >> $program_log_file
-			fi
-			#####################################################################################
-			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
-			#################
-			elapsed=`time_elapsed $start`
-			echo -e "$STEP_NAME: $elapsed" >> $log_file
-			echo "$STEP_NAME.$name=complete" >> $resume_file
-		else
-			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for file \"$name\". Skipping..."
 		fi
-	done
+		#####################################################################################
+		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
+		#################
+		elapsed=`time_elapsed $start`
+		echo -e "$STEP_NAME: $elapsed" >> $log_file
+		echo "$STEP_NAME.$name=complete" >> $resume_file
+	else
+		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for file \"$name\". Skipping..."
+	fi
 	#####################################################################################
 	# Output names:
 	singletons="$outdir/$name.singleton.truncated"

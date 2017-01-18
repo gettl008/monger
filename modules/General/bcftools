@@ -6,10 +6,6 @@ export SHELL=$(type -p bash)
 # freemem=`echo $freemem | cut -d' ' -f4`
 # MEMLIMIT=`expr $freemem \/ 4 \* 3`
 export _JAVA_OPTIONS=-Xmx2g
-pythondir=`which python3`
-pythondir=`dirname $pythondir`
-pythondir=`dirname $pythondir`
-export PYTHONPATH=$pythondir/lib/python3
 ###############################################
 MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`
 module_name=`basename "$0" | tr "[A-Z]" "[a-z]"`
@@ -91,6 +87,10 @@ $AUTHOR_INFO"
 	####################################
 	
 	monger install python3 -i $INSTALL_DIR
+	pythondir=`which python3`
+	pythondir=`dirname $pythondir`
+	pythondir=`dirname $pythondir`
+	export PYTHONPATH=$pythondir/lib/python3
 	pip3 install matplotlib
 	
 	###############################################
