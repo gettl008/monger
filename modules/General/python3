@@ -149,9 +149,7 @@ $AUTHOR_INFO"
 		pythondir=$pythondir/lib/python3.*
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
 	fi
-	else
-		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
-	fi
+	
 	if `grep -q "export PYTHONPATH=" ~/.bashrc`
 	then
 		if `grep -q "export PYTHONPATH=*$pythondir*" ~/.bashrc`
@@ -199,6 +197,6 @@ then
 else
 	echo -e \
 "SYNOPSIS:\n\
-monger [run|install] $module_name\n\n$MODULE_INFO$AUTHOR_INFO"
+monger [run|install] $module_name\n$MODULE_INFO\n$AUTHOR_INFO"
 	exit 1
 fi

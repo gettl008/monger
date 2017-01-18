@@ -2,9 +2,10 @@
 #define MAX_ARG_PAGES 32
 set -e
 export SHELL=$(type -p bash)
-# freemem=`free | awk '{print $4}'`
-# freemem=`echo $freemem | cut -d' ' -f4`
-# MEMLIMIT=`expr $freemem \/ 4 \* 3`
+freemem=`free | awk '{print $4}'`
+freemem=`echo $freemem | cut -d' ' -f4`
+MEMLIMIT=`expr $freemem \/ 4 \* 3`
+export _JAVA_OPTIONS=-Xmx2g
 ###############################################
 MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`
 module_name=`basename "$0" | tr "[A-Z]" "[a-z]"`
@@ -18,12 +19,12 @@ function beginswith {
 ###################
 ### MODULE INFO ###
 ###################
-DESCRIPTION="amtools (v1.x) is a suite of programs for interacting with high-throughput sequencing data."
-WEBSITE="http://www.htslib.org/"
+DESCRIPTION="Curl is a command-line tool for transferring data specified with URL syntax."
+WEBSITE="https://curl.haxx.se/"
 CITATIONS=""
 MODULE_AUTHOR="Noah Gettle"
 YEAR_WRITTEN="2016"
-current_version=""
+current_version="curl-7.52.1"
 ###############################################
 MODULE_INFO="DESCRIPTION:\n$DESCRIPTION\nWEBSITE:\n$WEBSITE\nCITATION:\n$CITATION"
 AUTHOR_INFO="$MODULE_AUTHOR $YEAR_WRITTEN"
@@ -84,51 +85,52 @@ $AUTHOR_INFO"
 	####################################
 	####### INSTALL DEPENDENCIES #######
 	####################################
-	monger install zlib -i $INSTALL_DIR
-	monger install ncurses -i $INSTALL_DIR
-	monger install bcftools -i $INSTALL_DIR
 
 	###############################################
 
 	####################################
-	###### INSTALL MAIN PROGRAM ########
+	####### INSTALL MAIN PROGRAM #######
 	####################################
 
-	############
-	# SAMTOOLS #
-	############
-	if type "samtools" >/dev/null 2>/dev/null
+	########
+	# CURL #
+	########
+	if type "curl" > /dev/null 2>/dev/null
 	then
-		set +e
-		eval "samtools --version" >/tmp/error 2>/tmp/error
-		set -e
-		if [ `head -1 /tmp/error | cut -d' ' -f1` != "samtools" ]
-		then
-			FORCE="TRUE"
-		fi
+		curlversion=`curl --version | head -1 | cut -d' ' -f2 | cut -d'.' -f1,2`
+	else
+		curlversion=0
 	fi
-	if ! type "samtools" >/dev/null 2>/dev/null || [ "$FORCE" == "TRUE" ]
-	then
+	if [ `echo $curlversion'>='7.28 | bc -l` == 0 ] || [ $FORCE == "TRUE" ]
+	then		 
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
 		cd $DOWNLOAD_DIR
-		if ! test -f $	$DOWNLOAD_DIR/samtools-1.3.1.tar.bz2
+		if ! test -f $DOWNLOAD_DIR/$current_version.tar.gz
 		then
-			wget https://github.com/samtools/samtools/releases/download/1.3.1/samtools-1.3.1.tar.bz2
+			wget https://curl.haxx.se/download/$current_version.tar.gz
+			tar -zxvf $DOWNLOAD_DIR/$current_version.tar.gz
 		fi
-		tar -jxvf $DOWNLOAD_DIR/samtools-1.3.1.tar.bz2
-		cd $DOWNLOAD_DIR/samtools-1.3.1
-		./configure --prefix=$INSTALL_DIR
+		cd $DOWNLOAD_DIR/$current_version
+		./configure prefix=$INSTALL_DIR
 		make
 		make install
-		cd $DOWNLOAD_DIR/samtools-1.3.1/htslib-1.3.1
-		./configure --prefix=$INSTALL_DIR
-		make
-		make install
-		rm $DOWNLOAD_DIR/samtools-1.3.1.tar.bz2
+		rm $DOWNLOAD_DIR/$current_version.tar.gz
+		CURL_DIR=$INSTALL_DIR
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
+		curlfile=`find $PATH_SEP -maxdepth 1 -name 'curl' | head -1`
+		CURL_DIR=`dirname $curlfile`
+		CURL_DIR=`dirname $CURL_DIR`
+	fi
+	
+	if `grep -q "export CURL_DIR=" ~/.bashrc`
+	then
+		sed -i "s|export CURL_DIR=.*|export CURL_DIR=$CURL_DIR|" ~/.bashrc
+	else
+		echo "export CURL_DIR=$CURL_DIR" >> ~/.bashrc
 	fi
 }
+
 
 ############################################################
 if [ "$1" == "run" ]

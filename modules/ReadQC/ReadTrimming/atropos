@@ -91,31 +91,8 @@ $AUTHOR_INFO"
 	####### INSTALL DEPENDENCIES #######
 	####################################
 	
-	###########
-	# LIBLZMA #
-	###########
-	liblzmasofile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'liblzma.so' | head -1`
-	liblzmaafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'liblzma.a'`
-	liblzmapcfile=`find $LD_LIBRARY_PATH_SEP -maxdepth 2 -name 'liblzma.pc'`
-	liblzmahfile=`find $INCLUDE_SEP -maxdepth 1 -name 'lzma.h'`
-	liblzmadirfile=`find $INCLUDE_SEP -maxdepth 1 -name 'lzma'`
-	if [ "$liblzmasofile" == "" ] || [ "$liblzmaafile" == "" ] || [ "$liblzmapcfile" == "" ] || [ "$liblzmahfile" == "" ] || [ "$liblzmadirfile" == "" ]
-	then
-		echo -e "> $CURRENT_SCRIPT : Installing LIBLZMA."
-		cd $DOWNLOAD_DIR
-		rm -rf $DOWNLOAD_DIR/liblzma
-		git clone https://github.com/kobolabs/liblzma
-		cd $DOWNLOAD_DIR/liblzma
-		./configure prefix=$INSTALL_DIR
-		make
-		make install
-		LIBLZMA_DIR=$INSTALL_DIR
-	else
-		LIBLZMA_DIR=`dirname $liblzmasofile`
-		LIBLZMA_DIR=`dirname $LIBLZMA_DIR`
-	fi
+	monger install liblzma -i $INSTALL_DIR
 	
-
 	if [[ "$LDFLAGS" != *"-L$LIBLZMA_DIR/lib"* ]]
 	then
 		export LDFLAGS="$LDFLAGS -L$LIBLZMA_DIR/lib"

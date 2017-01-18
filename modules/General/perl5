@@ -7,6 +7,7 @@ export SHELL=$(type -p bash)
 # MEMLIMIT=`expr $freemem \/ 4 \* 3`
 ###############################################
 MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`
+module_name=`basename "$0" | tr "[A-Z]" "[a-z]"`
 function beginswith { 
 	case $2 in 
 		"$1"*) true;; 
@@ -14,54 +15,63 @@ function beginswith {
 	esac
 }
 ###############################################
+###################
+### MODULE INFO ###
+###################
+DESCRIPTION="erl 5 is a highly capable, feature-rich programming language with over 29 years of development."
+WEBSITE="https://www.perl.org/"
+CITATIONS=""
+MODULE_AUTHOR="Noah Gettle"
+YEAR_WRITTEN="2016"
+current_version="perl-5.24.0"
+###############################################
+MODULE_INFO="DESCRIPTION:\n$DESCRIPTION\nWEBSITE:\n$WEBSITE\nCITATION:\n$CITATION"
+AUTHOR_INFO="$MODULE_AUTHOR $YEAR_WRITTEN"
 
 function mongerinstall {
+	MODULE_NAME=$1
+	shift
+	MODULE_INFO=$1
+	shift
+	AUTHOR_INFO=$1
+	shift
+	module_name=`echo $MODULE_NAME | tr "[A-Z]" "[a-z]"`
+	SUBTHREADS=1
 	####################################
 	############ USAGE #################
 	####################################
-	usage=\
-"SYNOPSIS:\n\
-monger install perl5\n\n\
-DESCRIPTION:\n\
-Installer for Perl5 and its dependencies.\n\n\
-PERL5 DESCRIPTION:\n\
-Perl 5 is a highly capable, feature-rich programming language with over 29 years of development.\n\
-WEBSITE:\n\
-https://www.perl.org/\n\n\
-CITATION:\n\
+	usage="SYNOPSIS:\nmonger install $module_name\n$MODULE_INFO\n\
 OPTIONS:\n\
   -i | --install_dir [DIR]\tInstallation directory [/usr/local/]\n\
-  -f | --force\t\t\tOverwrite existing program executables.\n\
+  -f | --force\t\t\tOverwrite existing program executables.\n\	
   -h | --help\t\t\tPrint help message\n\n\
 AUTHOR:\n\
-Noah Gettle 2016"
-  
-  	####################################
-  	######## INPUT PROCESSING ##########
-  	####################################
-  	MODULE_NAME=$1
-  	shift
-  	INSTALL_DIR=/usr/local
-  	FORCE=FALSE
-  	while [ "$1" != "" ]
-  	do
-  		case $1 in
-  			-i | --install_dir)
-  				if ! `beginswith "-" $2`
-  				then
-  					shift
-  					INSTALL_DIR=$1
-  				fi;;
-  			-f | --force)	FORCE=TRUE;;
-  			-h | --help)	echo -e $usage
-  							exit 1;;
-  			*)				echo -e "$1 not recognized as a valid option.\nUse option \"-h\" for more help."
-  							exit 1						
-  		esac
-  		shift
-  	done
+$AUTHOR_INFO"
 
-  	####################################
+	####################################
+	######## INPUT PROCESSING ##########
+	####################################
+	INSTALL_DIR=/usr/local
+	FORCE=FALSE
+	while [ "$1" != "" ]
+	do
+		case $1 in
+			-i | --install_dir)	
+				shift
+				INSTALL_DIR=$1;;
+			-f | --force)
+				FORCE=TRUE;;
+			-h | --help)
+				echo -e $usage
+				exit 1;;
+			*)	
+				echo -e "\nMONGER RUN $MODULE_NAME ERROR: $1 is not a valid option.\n$usage"
+				exit 1				
+		esac
+		shift
+	done
+
+	####################################
 
 	PATH_SEP=`echo $PATH | sed 's|:| |g'`
 	LD_LIBRARY_PATH_SEP=`echo $LD_LIBRARY_PATH | sed 's|:| |g'`
@@ -71,10 +81,8 @@ Noah Gettle 2016"
 	DOWNLOAD_DIR=$INSTALL_DIR/soft
 	mkdir -p $DOWNLOAD_DIR
 
-	###############################################
-
 	####################################
-	###### INSTALL DEPENDENCIES ########
+	####### INSTALL DEPENDENCIES #######
 	####################################
 
 	###############################################
@@ -90,18 +98,18 @@ Noah Gettle 2016"
 	then
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
 		cd $DOWNLOAD_DIR
-		if ! test -f $DOWNLOAD_DIR/perl-5.24.0.tar.gz
+		if ! test -f $DOWNLOAD_DIR/$current_version.tar.gz
 		then
-			wget http://search.cpan.org/CPAN/authors/id/R/RJ/RJBS/perl-5.24.0.tar.gz
+			wget http://search.cpan.org/CPAN/authors/id/R/RJ/RJBS/$current_version.tar.gz
 		fi
-		tar -zxvf $DOWNLOAD_DIR/perl-5.24.0.tar.gz
-		cd $DOWNLOAD_DIR/perl-5.24.0
+		tar -zxvf $DOWNLOAD_DIR/$current_version.tar.gz
+		cd $DOWNLOAD_DIR/$current_version
 		./Configure -des -Dprefix=$INSTALL_DIR
 		set +e
 		make test
 		set -e
 		make install
-		rm $DOWNLOAD_DIR/perl-5.24.0.tar.gz
+		rm $DOWNLOAD_DIR/$current_version.tar.gz
 		if ! type "perl" >/dev/null 2>/dev/null 
 		then
 			echo "MONGER INSTALL ERROR: Something went wrong when installing PERL. Sorry, but you may need to try manual installation."
@@ -124,27 +132,75 @@ Noah Gettle 2016"
 	# CPAN SETTINGS #
 	#################
 	perlpath=$(echo $INSTALL_DIR | sed 's|\/|\\\/|g')
-	mia_line=`grep 'make_install_arg' ~/.cpan/CPAN/MyConfig.pm | sed 's|\/|\\\/|g' | sed "s|\[|\\\\\[|g" | sed "s|\]|\\\\\]|g"`
+	if ! test -f ~/.cpan/CPAN/MyConfig.pm
+	then
+		mkdir -p ~/.cpan/CPAN
+		echo -e "'build_dir' => qq[$ENV{HOME}/.cpan/build],\n\
+'cpan_home' => qq[$ENV{HOME}/.cpan],\n\
+'histfile' => qq[$ENV{HOME}/.cpan/histfile],\n\
+'keep_source_where' => qq[$ENV{HOME}/.cpan/sources],\n\
+'makepl_arg' => q[PREFIX=~/lib/perl5 LIB=~/lib/perl5/lib INSTALLMAN1DIR=~/lib/perl5/man1 INSTALLMAN3DIR=~/lib/perl5/man3]\n\
+'mbuild_arg' => qq[--extra_linker_flags -L$ENV{HOME}/lib]\n\
+'mbuildpl_arg' => qq[--install_base $ENV{HOME}],"\
+			> ~/.cpan/CPAN/MyConfig.pm
+	fi
+	
 	new_mia_line="\'make_install_arg\' => q\[$perlpath\],"
-	sed -i "s|$mia_line.*|$new_mia_line|" ~/.cpan/CPAN/MyConfig.pm
-	mpa_line=`grep 'makepl_arg' ~/.cpan/CPAN/MyConfig.pm | sed 's|\/|\\\/|g' | sed "s|\[|\\\\\[|g" | sed "s|\]|\\\\\]|g"`
+	if `grep -q 'make_install_arg' ~/.cpan/CPAN/MyConfig.pm`
+	then
+		mia_line=`grep 'make_install_arg' ~/.cpan/CPAN/MyConfig.pm | sed 's|\/|\\\/|g' | sed "s|\[|\\\\\[|g" | sed "s|\]|\\\\\]|g"`
+		sed -i "s|$mia_line.*|$new_mia_line|" ~/.cpan/CPAN/MyConfig.pm
+	else
+		echo "'make_install_arg' => q[$INSTALL_DIR]," >> ~/.cpan/CPAN/MyConfig.pm
+	fi
+	
 	new_mpa_line="\'makepl_arg\' => q\[INSTALL_BASE=$perlpath\],"
-	sed -i "s|$mpa_line.*|$new_mpa_line|" ~/.cpan/CPAN/MyConfig.pm
-	mbpa_line=`grep 'mbuildpl_arg' ~/.cpan/CPAN/MyConfig.pm | sed 's|\/|\\\/|g' | sed "s|\[|\\\\\[|g" | sed "s|\]|\\\\\]|g"`
+	if `grep -q 'makepl_arg' ~/.cpan/CPAN/MyConfig.pm`
+	then
+		mpa_line=`grep 'makepl_arg' ~/.cpan/CPAN/MyConfig.pm | sed 's|\/|\\\/|g' | sed "s|\[|\\\\\[|g" | sed "s|\]|\\\\\]|g"`
+		sed -i "s|$mpa_line.*|$new_mpa_line|" ~/.cpan/CPAN/MyConfig.pm
+	else
+		echo -e "'makepl_arg' => q[INSTALL_BASE=$INSTALL_DIR]," >> ~/.cpan/CPAN/MyConfig.pm
+	fi
+	
 	new_mbpa_line="\'mbuildpl_arg\' => q\[--install_base=$perlpath\],"
-	sed -i "s|$mbpa_line.*|$new_mbpa_line|" ~/.cpan/CPAN/MyConfig.pm
+	if `grep -q 'mbuildpl_arg' ~/.cpan/CPAN/MyConfig.pm`
+	then
+		mbpa_line=`grep 'mbuildpl_arg' ~/.cpan/CPAN/MyConfig.pm | sed 's|\/|\\\/|g' | sed "s|\[|\\\\\[|g" | sed "s|\]|\\\\\]|g"`
+		sed -i "s|$mbpa_line.*|$new_mbpa_line|" ~/.cpan/CPAN/MyConfig.pm
+	else
+		echo -e "'mbuildpl_arg' => q[--install_base=$INSTALL_DIR]," >> ~/.cpan/CPAN/MyConfig.pm
+	fi
+	
+	if ! `echo $PERL5LIB | grep -q "$INSTALL_DIR/lib/perl5/lib"`
+	then
+		if `grep -q "export PERL5LIB=" ~/.bashrc`
+		then
+			if ! `grep -q "export PERL5LIB=*$INSTALL_DIR/lib/perl5/lib*" ~/.bashrc`
+			then
+				. ~/.bashrc
+				sed -i "s|export PERL5LIB=.*|export PERL5LIB=$INSTALL_DIR/lib/perl5/lib\:$PERL5LIB|" ~/.bashrc
+			fi
+		else
+			echo "export PERL5LIB=$INSTALL_DIR/lib/perl5/lib:$PERL5LIB" >> ~/.bashrc
+		fi
+		. ~/.bashrc
+	fi
+	
 }
 
 ############################################################
 if [ "$1" == "run" ]
 then
 	shift
-	run $MODULE_NAME $*
+	run "$MODULE_NAME" "$MODULE_INFO" "$AUTHOR_INFO" $*
 elif [ "$1" == "install" ]
 then
 	shift
-	mongerinstall $MODULE_NAME $*
+	mongerinstall "$MODULE_NAME" "$MODULE_INFO" "$AUTHOR_INFO" $*
 else
-	echo -e "MONGER $MODULE_NAME ERROR: You must specify either \"run\" or \"install\""
+	echo -e \
+"SYNOPSIS:\n\
+monger [run|install] $module_name\n$MODULE_INFO\n$AUTHOR_INFO"
 	exit 1
 fi

@@ -19,12 +19,12 @@ function beginswith {
 ###################
 ### MODULE INFO ###
 ###################
-DESCRIPTION="R is a free software environment for statistical computing and graphics."
-WEBSITE="https://www.r-project.org/"
+DESCRIPTION="The ncurses (new curses) library is a free software emulation of curses in System V Release 4.0 (SVr4), and more."
+WEBSITE="https://www.gnu.org/software/ncurses/"
 CITATIONS=""
 MODULE_AUTHOR="Noah Gettle"
 YEAR_WRITTEN="2016"
-current_version="R-3.3.1"
+current_version="ncurses-6.0"
 ###############################################
 MODULE_INFO="DESCRIPTION:\n$DESCRIPTION\nWEBSITE:\n$WEBSITE\nCITATION:\n$CITATION"
 AUTHOR_INFO="$MODULE_AUTHOR $YEAR_WRITTEN"
@@ -83,101 +83,27 @@ $AUTHOR_INFO"
 	mkdir -p $DOWNLOAD_DIR
 
 	####################################
-	####### INSTALL DEPENDENCIES #######
+	###### INSTALL DEPENDENCIES ########
 	####################################
-
-	monger install zlib -i $INSTALL_DIR
-	monger install bzip2 -i $INSTALL_DIR
-	monger install liblzma -i $INSTALL_DIR
-	monger install pcre -i $INSTALL_DIR
-	monger install curl -i $INSTALL_DIR
-	
-	. ~/.bashrc
-	
-
-	if ! `echo $LD_LIBRARY_PATH | grep -q "$ZLIB_DIR/lib"`
-	then
-		export LD_LIBRARY_PATH="$ZLIB_DIR/lib:$LD_LIBRARY_PATH"
-	fi
-	if ! `echo $LDFLAGS | grep -q "\-L$ZLIB_DIR/lib"`
-	then
-		export LDFLAGS="$LDFLAGS -L$ZLIB_DIR/lib"
-	fi
-	if ! `echo $CFLAGS | grep -q "\-I$ZLIB_DIR/include"`
-	then
-		export CFLAGS="$CFLAGS -I$ZLIB_DIR/include"
-	fi
-	
-	if ! `echo $LD_LIBRARY_PATH | grep -q "$BZIP_DIR/lib"`
-	then
-		export LD_LIBRARY_PATH="$BZIP_DIR/lib:$LD_LIBRARY_PATH"
-	fi
-	if ! `echo $LDFLAGS | grep -q "\-L$BZIP_DIR/lib"`
-	then
-		export LDFLAGS="$LDFLAGS -L$BZIP_DIR/lib"
-	fi
-	if ! `echo $CFLAGS | grep -q "\-I$BZIP_DIR/include"`
-	then
-		export CFLAGS="$CFLAGS -I$BZIP_DIR/include"
-	fi
-	
-	if ! `echo $LD_LIBRARY_PATH | grep -q "$LIBLZMA_DIR/lib"`
-	then
-		export LD_LIBRARY_PATH="$LIBLZMA_DIR/lib:$LD_LIBRARY_PATH"
-	fi
-	if ! `echo $LDFLAGS | grep -q "\-L$LIBLZMA_DIR/lib"`
-	then
-		export LDFLAGS="$LDFLAGS -L$LIBLZMA_DIR/lib"
-	fi
-	if ! `echo $CFLAGS | grep -q "\-I$LIBLZMA_DIR/include"`
-	then
-		export CFLAGS="$CFLAGS -I$LIBLZMA_DIR/include"
-	fi
-	
-	if ! `echo $LD_LIBRARY_PATH | grep -q "$PCRE_DIR/lib"`
-	then
-		export LD_LIBRARY_PATH="$PCRE_DIR/lib:$LD_LIBRARY_PATH"
-	fi
-	if ! `echo $LDFLAGS | grep -q "\-L$PCRE_DIR/lib"`
-	then
-		export LDFLAGS="$LDFLAGS -L$PCRE_DIR/lib"
-	fi
-	if ! `echo $CFLAGS | grep -q "\-I$PCRE_DIR/include"`
-	then
-		export CFLAGS="$CFLAGS -I$PCRE_DIR/include"
-	fi
-	if ! `echo $CPPFLAGS | grep -q "\-I$PCRE_DIR/include"`
-	then
-		export CPPFLAGS="$CPPFLAGS -I$PCRE_DIR/include"
-	fi
-	
-	if ! `echo $LD_LIBRARY_PATH | grep -q "$CURL_DIR/lib"`
-	then
-		export LD_LIBRARY_PATH="$CURL_DIR/lib:$LD_LIBRARY_PATH"
-	fi
-	if ! `echo $LDFLAGS | grep -q "\-L$CURL_DIR/lib"`
-	then
-		export LDFLAGS="$LDFLAGS -L$CURL_DIR/lib"
-	fi
-	if ! `echo $CFLAGS | grep -q "\-I$CURL_DIR/include"`
-	then
-		export CFLAGS="$CFLAGS -I$CURL_DIR/include"
-	fi
-	if ! `echo $CPPFLAGS | grep -q "\-I$CURL_DIR/include"`
-	then
-		export CPPFLAGS="$CPPFLAGS -I$CURL_DIR/include"
-	fi
 
 	###############################################
 
 	####################################
 	###### INSTALL MAIN PROGRAM ########
 	####################################
-
-	#####
-	# R #
-	#####
-	if ! type "Rscript" >/dev/null 2>/dev/null || [ "$FORCE" == "TRUE" ]
+	
+	###########
+	# NCURSES #
+	###########
+	libncursesafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libncurses.a'`
+	libncursesgafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libncurses_g.a'`
+	libncursesppafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libncurses++.a'`
+	libncursesppgafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libncurses++_g.a'`
+	ncursesdir=`find $INCLUDE_SEP -maxdepth 1 -name 'ncurses' -type d`
+	if [ "$libncursesafile" == "" ] || [ "$libncursesgafile" == "" ]\
+		 || [ "$libncursesppafile" == "" ] || [ "$libncursesppgafile" == "" ]\
+			 || [ "$ncursesdir" == "" ]\
+				 || [ "$FORCE" == "TRUE" ]
 	then
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
 		cd $DOWNLOAD_DIR
@@ -185,15 +111,15 @@ $AUTHOR_INFO"
 		then
 			if ! test -f $DOWNLOAD_DIR/$current_version.tar.gz
 			then
-				wget http://ftp.ussg.iu.edu/CRAN/src/base/R-3/$current_version.tar.gz
+				wget http://ftp.gnu.org/gnu/ncurses/$current_version.tar.gz
 			fi
 			tar -zxvf $DOWNLOAD_DIR/$current_version.tar.gz
-		fi
+		fi 
 		cd $DOWNLOAD_DIR/$current_version
-		./configure --prefix=$INSTALL_DIR --with-x=no
+		./configure --prefix=$INSTALL_DIR
 		make
 		make install
-		rm $DOWNLOAD_DIR/$current_version.tar.gz*
+		rm $DOWNLOAD_DIR/$current_version.tar.gz
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
 	fi

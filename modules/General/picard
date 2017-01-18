@@ -7,6 +7,7 @@ export SHELL=$(type -p bash)
 # MEMLIMIT=`expr $freemem \/ 4 \* 3`
 ###############################################
 MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`
+module_name=`basename "$0" | tr "[A-Z]" "[a-z]"`
 function beginswith { 
 	case $2 in 
 		"$1"*) true;; 
@@ -14,48 +15,58 @@ function beginswith {
 	esac
 }
 ###############################################
+###################
+### MODULE INFO ###
+###################
+DESCRIPTION="Picard is a set of command line tools for manipulating high-throughput sequencing (HTS) data and formats such as SAM/BAM/CRAM and VCF."
+WEBSITE="https://broadinstitute.github.io/picard/"
+CITATIONS=""
+MODULE_AUTHOR="Noah Gettle"
+YEAR_WRITTEN="2016"
+current_version=""
+###############################################
+MODULE_INFO="DESCRIPTION:\n$DESCRIPTION\nWEBSITE:\n$WEBSITE\nCITATION:\n$CITATION"
+AUTHOR_INFO="$MODULE_AUTHOR $YEAR_WRITTEN"
+
 function mongerinstall {
+	MODULE_NAME=$1
+	shift
+	MODULE_INFO=$1
+	shift
+	AUTHOR_INFO=$1
+	shift
+	module_name=`echo $MODULE_NAME | tr "[A-Z]" "[a-z]"`
+	SUBTHREADS=1
 	####################################
 	############ USAGE #################
 	####################################
-	usage=\
-"SYNOPSIS:\n\
-monger install picard\n\n\
-DESCRIPTION:\n\
-Installer for Picard and its dependencies.\n\n\
-PICARD DESCRIPTION:\n\
-Picard is a set of command line tools for manipulating high-throughput sequencing (HTS) data and formats such as SAM/BAM/CRAM and VCF.\n\n\
-WEBSITE:\n\
-https://broadinstitute.github.io/picard/\n\n\
-CITATION:\n\
+	usage="SYNOPSIS:\nmonger install $module_name\n$MODULE_INFO\n\
 OPTIONS:\n\
   -i | --install_dir [DIR]\tInstallation directory [/usr/local/]\n\
-  -f | --force\t\t\tOverwrite existing program executables.\n\
+  -f | --force\t\t\tOverwrite existing program executables.\n\	
   -h | --help\t\t\tPrint help message\n\n\
 AUTHOR:\n\
-Noah Gettle 2016"
-  
+$AUTHOR_INFO"
+
 	####################################
 	######## INPUT PROCESSING ##########
 	####################################
-	MODULE_NAME=$1
-	shift
 	INSTALL_DIR=/usr/local
 	FORCE=FALSE
 	while [ "$1" != "" ]
 	do
 		case $1 in
-			-i | --install_dir)
-				if ! `beginswith "-" $2`
-				then
-					shift
-					INSTALL_DIR=$1
-				fi;;
-			-f | --force)	FORCE=TRUE;;
-			-h | --help)	echo -e $usage
-							exit 1;;
-			*)				echo -e "$1 not recognized as a valid option.\nUse option \"-h\" for more help."
-							exit 1						
+			-i | --install_dir)	
+				shift
+				INSTALL_DIR=$1;;
+			-f | --force)
+				FORCE=TRUE;;
+			-h | --help)
+				echo -e $usage
+				exit 1;;
+			*)	
+				echo -e "\nMONGER RUN $MODULE_NAME ERROR: $1 is not a valid option.\n$usage"
+				exit 1				
 		esac
 		shift
 	done
@@ -70,10 +81,8 @@ Noah Gettle 2016"
 	DOWNLOAD_DIR=$INSTALL_DIR/soft
 	mkdir -p $DOWNLOAD_DIR
 
-	###############################################
-
 	####################################
-	###### INSTALL DEPENDENCIES ########
+	####### INSTALL DEPENDENCIES #######
 	####################################
 
 	###############################################
@@ -117,12 +126,14 @@ Noah Gettle 2016"
 if [ "$1" == "run" ]
 then
 	shift
-	run $MODULE_NAME $*
+	run "$MODULE_NAME" "$MODULE_INFO" "$AUTHOR_INFO" $*
 elif [ "$1" == "install" ]
 then
 	shift
-	mongerinstall $MODULE_NAME $*
+	mongerinstall "$MODULE_NAME" "$MODULE_INFO" "$AUTHOR_INFO" $*
 else
-	echo -e "MONGER $MODULE_NAME ERROR: You must specify either \"run\" or \"install\""
+	echo -e \
+"SYNOPSIS:\n\
+monger [run|install] $module_name\n$MODULE_INFO\n$AUTHOR_INFO"
 	exit 1
 fi

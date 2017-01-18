@@ -40,7 +40,7 @@ function mongerinstall {
 	####################################
 	############ USAGE #################
 	####################################
-	usage="SYNOPSIS:\nmonger run $module_name\n$MODULE_INFO\n\
+	usage="SYNOPSIS:\nmonger install $module_name\n$MODULE_INFO\n\
 OPTIONS:\n\
   -i | --install_dir [DIR]\tInstallation directory [/usr/local/]\n\
   -f | --force\t\t\tOverwrite existing program executables.\n\	
@@ -91,9 +91,9 @@ $AUTHOR_INFO"
 	####### INSTALL MAIN PROGRAM #######
 	####################################
 
-	########
-	# XXXX #
-	########
+	#######
+	# BWA #
+	#######
 	if ! type "bwa" >/dev/null 2>/dev/null || [ $FORCE == "TRUE" ]
 	then
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."

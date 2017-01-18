@@ -19,12 +19,12 @@ function beginswith {
 ###################
 ### MODULE INFO ###
 ###################
-DESCRIPTION="R is a free software environment for statistical computing and graphics."
-WEBSITE="https://www.r-project.org/"
+DESCRIPTION="A Massively Spiffy Yet Delicately Unobtrusive Compression Library"
+WEBSITE="http://www.zlib.net/"
 CITATIONS=""
 MODULE_AUTHOR="Noah Gettle"
 YEAR_WRITTEN="2016"
-current_version="R-3.3.1"
+current_version="v1.2.8"
 ###############################################
 MODULE_INFO="DESCRIPTION:\n$DESCRIPTION\nWEBSITE:\n$WEBSITE\nCITATION:\n$CITATION"
 AUTHOR_INFO="$MODULE_AUTHOR $YEAR_WRITTEN"
@@ -83,119 +83,47 @@ $AUTHOR_INFO"
 	mkdir -p $DOWNLOAD_DIR
 
 	####################################
-	####### INSTALL DEPENDENCIES #######
+	###### INSTALL DEPENDENCIES ########
 	####################################
-
-	monger install zlib -i $INSTALL_DIR
-	monger install bzip2 -i $INSTALL_DIR
-	monger install liblzma -i $INSTALL_DIR
-	monger install pcre -i $INSTALL_DIR
-	monger install curl -i $INSTALL_DIR
-	
-	. ~/.bashrc
-	
-
-	if ! `echo $LD_LIBRARY_PATH | grep -q "$ZLIB_DIR/lib"`
-	then
-		export LD_LIBRARY_PATH="$ZLIB_DIR/lib:$LD_LIBRARY_PATH"
-	fi
-	if ! `echo $LDFLAGS | grep -q "\-L$ZLIB_DIR/lib"`
-	then
-		export LDFLAGS="$LDFLAGS -L$ZLIB_DIR/lib"
-	fi
-	if ! `echo $CFLAGS | grep -q "\-I$ZLIB_DIR/include"`
-	then
-		export CFLAGS="$CFLAGS -I$ZLIB_DIR/include"
-	fi
-	
-	if ! `echo $LD_LIBRARY_PATH | grep -q "$BZIP_DIR/lib"`
-	then
-		export LD_LIBRARY_PATH="$BZIP_DIR/lib:$LD_LIBRARY_PATH"
-	fi
-	if ! `echo $LDFLAGS | grep -q "\-L$BZIP_DIR/lib"`
-	then
-		export LDFLAGS="$LDFLAGS -L$BZIP_DIR/lib"
-	fi
-	if ! `echo $CFLAGS | grep -q "\-I$BZIP_DIR/include"`
-	then
-		export CFLAGS="$CFLAGS -I$BZIP_DIR/include"
-	fi
-	
-	if ! `echo $LD_LIBRARY_PATH | grep -q "$LIBLZMA_DIR/lib"`
-	then
-		export LD_LIBRARY_PATH="$LIBLZMA_DIR/lib:$LD_LIBRARY_PATH"
-	fi
-	if ! `echo $LDFLAGS | grep -q "\-L$LIBLZMA_DIR/lib"`
-	then
-		export LDFLAGS="$LDFLAGS -L$LIBLZMA_DIR/lib"
-	fi
-	if ! `echo $CFLAGS | grep -q "\-I$LIBLZMA_DIR/include"`
-	then
-		export CFLAGS="$CFLAGS -I$LIBLZMA_DIR/include"
-	fi
-	
-	if ! `echo $LD_LIBRARY_PATH | grep -q "$PCRE_DIR/lib"`
-	then
-		export LD_LIBRARY_PATH="$PCRE_DIR/lib:$LD_LIBRARY_PATH"
-	fi
-	if ! `echo $LDFLAGS | grep -q "\-L$PCRE_DIR/lib"`
-	then
-		export LDFLAGS="$LDFLAGS -L$PCRE_DIR/lib"
-	fi
-	if ! `echo $CFLAGS | grep -q "\-I$PCRE_DIR/include"`
-	then
-		export CFLAGS="$CFLAGS -I$PCRE_DIR/include"
-	fi
-	if ! `echo $CPPFLAGS | grep -q "\-I$PCRE_DIR/include"`
-	then
-		export CPPFLAGS="$CPPFLAGS -I$PCRE_DIR/include"
-	fi
-	
-	if ! `echo $LD_LIBRARY_PATH | grep -q "$CURL_DIR/lib"`
-	then
-		export LD_LIBRARY_PATH="$CURL_DIR/lib:$LD_LIBRARY_PATH"
-	fi
-	if ! `echo $LDFLAGS | grep -q "\-L$CURL_DIR/lib"`
-	then
-		export LDFLAGS="$LDFLAGS -L$CURL_DIR/lib"
-	fi
-	if ! `echo $CFLAGS | grep -q "\-I$CURL_DIR/include"`
-	then
-		export CFLAGS="$CFLAGS -I$CURL_DIR/include"
-	fi
-	if ! `echo $CPPFLAGS | grep -q "\-I$CURL_DIR/include"`
-	then
-		export CPPFLAGS="$CPPFLAGS -I$CURL_DIR/include"
-	fi
 
 	###############################################
 
 	####################################
 	###### INSTALL MAIN PROGRAM ########
 	####################################
-
-	#####
-	# R #
-	#####
-	if ! type "Rscript" >/dev/null 2>/dev/null || [ "$FORCE" == "TRUE" ]
+	
+	########
+	# ZLIB #
+	########
+	libzsofile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libz.so' | head -1`
+	libzafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libz.a'`
+	zlibpcfile=`find $LD_LIBRARY_PATH_SEP -maxdepth 2 -name 'zlib.pc'`
+	zlibhfile=`find $INCLUDE_SEP -maxdepth 1 -name 'zlib.h'`
+	if [ "$libzsofile" == "" ] || [ "$libzafile" == "" ] || [ "$zlibpcfile" == "" ] || [ "$zlibhfile" == "" ] || [ "$FORCE" == "TRUE" ]
 	then
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
 		cd $DOWNLOAD_DIR
-		if ! test -d $DOWNLOAD_DIR/$current_version
+		if ! test -f $DOWNLOAD_DIR/$current_version.tar.gz
 		then
-			if ! test -f $DOWNLOAD_DIR/$current_version.tar.gz
-			then
-				wget http://ftp.ussg.iu.edu/CRAN/src/base/R-3/$current_version.tar.gz
-			fi
-			tar -zxvf $DOWNLOAD_DIR/$current_version.tar.gz
+			wget https://github.com/madler/zlib/archive/$current_version.tar.gz
 		fi
-		cd $DOWNLOAD_DIR/$current_version
-		./configure --prefix=$INSTALL_DIR --with-x=no
+		tar -zxvf $DOWNLOAD_DIR/$current_version.tar.gz
+		cd $DOWNLOAD_DIR/zlib-1.2.8
+		./configure --prefix=$INSTALL_DIR
 		make
 		make install
-		rm $DOWNLOAD_DIR/$current_version.tar.gz*
+		rm -f $DOWNLOAD_DIR/$current_version.tar.gz
+		ZLIB_DIR=$INSTALL_DIR
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
+		ZLIB_DIR=`dirname $libzsofile`
+		ZLIB_DIR=`dirname $ZLIB_DIR`
+	fi
+	if `grep -q "export ZLIB_DIR=" ~/.bashrc`
+	then
+		sed -i "s|export ZLIB_DIR=.*|export ZLIB_DIR=$ZLIB_DIR|" ~/.bashrc
+	else
+		echo "export ZLIB_DIR=$ZLIB_DIR" >> ~/.bashrc
 	fi
 }
 

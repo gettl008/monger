@@ -68,20 +68,18 @@ rm -rf $monger_dir/monger-e
 
 if ! `echo $PATH | grep -q "$PREFIX/bin"` # [[ ":$PATH:" != *":$INSTALL_DIR/bin:"* ]]
 then
-	if ! `grep -q "^export PATH=" ~/.bashrc` # > /dev/null
+	if `grep -q "export PATH=" ~/.bashrc`
 	then
-		echo -e "export PATH=$PREFIX/bin:$PATH" >> ~/.bashrc
+		if ! `grep -q "export PATH=*$PREFIX/bin*" ~/.bashrc`
+		then
+			. ~/.bashrc
+			sed -i "s|export PATH=.*|export PATH=$PREFIX/bin\:$PATH|" ~/.bashrc
+		fi
 	else
-		sed -i'' -e "s|export PATH=.*|export PATH=$PREFIX/bin:$PATH|g" ~/.bashrc
-		rm -rf ~/.bashrc-e
-	fi 
+		echo "export PATH=$PREFIX/bin:$PATH" >> ~/.bashrc
+	fi
 	. ~/.bashrc
 fi
-# if ! `echo $PATH | grep -q "$PREFIX/bin"`
-# then
-# 	echo "here"
-# 	export PATH=$PREFIX/bin:$PATH
-# fi
 
 cp $monger_dir/monger $monger_dir/extras/*  $PREFIX/bin/
 
@@ -121,7 +119,7 @@ monger install picard -i $PREFIX
 monger install perl5 -i $PREFIX
 monger install python2.7 -i $PREFIX
 monger install samtools -i $PREFIX
-monger install parallel -i $PREFIX
+#monger install parallel -i $PREFIX
 ###############################################
 ###############################################
 # INSTALL AUXILLARY THIRDPARTY SOFTWARE #
