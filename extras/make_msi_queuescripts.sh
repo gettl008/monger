@@ -160,6 +160,7 @@ do
 #PBS -e $output_dir/stderr/$name\n\
 #PBS -m abe\n\
 #PBS -q $queue\n\n\
+module load gcc/4.8.2\n\
 . /scratch/gettl008/monger/test.variables\n\
 monger run $output_dir/mongerscripts/$name.ms" \
 	> $output_dir/qscripts/$name.q
