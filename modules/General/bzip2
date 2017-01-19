@@ -102,6 +102,8 @@ $AUTHOR_INFO"
 		tar -zxvf $DOWNLOAD_DIR/bzip2-1.0.6.tar.gz
 		cd $DOWNLOAD_DIR/bzip2-1.0.6
 		make
+		make clean
+		make -f Makefile-libbz2_so
 		make install PREFIX=$INSTALL_DIR
 		rm -f $DOWNLOAD_DIR/bzip2-1.0.6.tar.gz
 		BZIP_DIR=$INSTALL_DIR

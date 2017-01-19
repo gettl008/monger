@@ -94,25 +94,8 @@ $AUTHOR_INFO"
 	####################################
 	####### INSTALL DEPENDENCIES #######
 	####################################
-
-	# ##########
-	# # LIBBZ2 #
-	# ##########
-	# libbz2afile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libbz2.a' | head -1`
-	# if [ "$libbz2afile" == "" ]
-	# then
-	# 	echo -e "> MONGER INSTALL: Installing LIBBZ2."
-	# 	cd $DOWNLOAD_DIR
-	# 	if ! test -f $DOWNLOAD_DIR/bzip2-1.0.6.tar.gz
-	# 	then
-	# 		wget http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz
-	# 	fi
-	# 	tar -zxvf $DOWNLOAD_DIR/bzip2-1.0.6.tar.gz
-	# 	cd $DOWNLOAD_DIR/bzip2-1.0.6
-	# 	make
-	# 	make install PREFIX=$INSTALL_DIR
-	# fi
-	#
+	
+	monger install bzip2 -i $INSTALL_DIR
 	###############################################
 
 	####################################
@@ -132,7 +115,7 @@ $AUTHOR_INFO"
 		fi
 		tar -zxvf $DOWNLOAD_DIR/Python-3.5.2.tgz
 		cd $DOWNLOAD_DIR/Python-3.5.2
-		./configure --prefix=$INSTALL_DIR
+		./configure --prefix=$INSTALL_DIR ./configure
 		make
 		make install
 		if ! type "python3" >/dev/null 2>/dev/null 
