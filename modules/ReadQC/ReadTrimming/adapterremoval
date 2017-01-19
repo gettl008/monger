@@ -86,41 +86,8 @@ $AUTHOR_INFO"
 	####### INSTALL DEPENDENCIES #######
 	####################################
 
-	########
-	# ZLIB #
-	########
-	libzsofile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libz.so'`
-	libzafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libz.a'`
-	zlibpcfile=`find $LD_LIBRARY_PATH_SEP -maxdepth 2 -name 'zlib.pc'`
-	zlibhfile=`find $INCLUDE_SEP -maxdepth 1 -name 'zlib.h'`
-	if [ "$libzsofile" == "" ] || [ "$libzafile" == "" ] || [ "$zlibpcfile" == "" ] || [ "$zlibhfile" == "" ]
-	then
-		echo -e "> $CURRENT_SCRIPT : Installing ZLIB."
-		cd $DOWNLOAD_DIR
-		wget http://zlib.net/zlib-1.2.8.tar.gz
-		tar -zxvf $DOWNLOAD_DIR/zlib-1.2.8.tar.gz
-		cd $DOWNLOAD_DIR/zlib-1.2.8
-		./configure --prefix=$INSTALL_DIR
-		make
-		make install
-		rm -f $DOWNLOAD_DIR/zlib-1.2.8.tar.gz
-	fi
-
-	########
-	# BZIP #
-	########
-	bzipfile=`find $INCLUDE_SEP -maxdepth 1 -name 'bzlib.h'`
-	if [ "$bzipfile" == "" ]
-	then
-		echo -e "> $CURRENT_SCRIPT: Installing BZIP2."
-		cd $DOWNLOAD_DIR
-		wget http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz
-		tar -zxvf $DOWNLOAD_DIR/bzip2-1.0.6.tar.gz
-		cd $DOWNLOAD_DIR/bzip2-1.0.6
-		make
-		make install PREFIX=$INSTALL_DIR
-		rm -f $DOWNLOAD_DIR/bzip2-1.0.6.tar.gz
-	fi
+	monger install zlib -i $INSTALL_DIR
+	monger install bzip2 -i $INSTALL_DIR
 
 	###############################################
 

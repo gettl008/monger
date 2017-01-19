@@ -161,7 +161,7 @@ do
 #PBS -m abe\n\
 #PBS -q $queue\n\n\
 module load gcc/4.8.2\n\
-. /scratch/gettl008/monger/test.variables\n\
+. ~/.bashrc\n\
 monger run $output_dir/mongerscripts/$name.ms" \
 	> $output_dir/qscripts/$name.q
 	cp $mongerscript $output_dir/mongerscripts/$name.ms
