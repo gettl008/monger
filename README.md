@@ -36,7 +36,7 @@ To install Monger and some of its main programs simply type...
 Monger will automatically install only the basic dependencies for most tools that you might use. While you can always install tools later (see below), you may want to change what some of default installed programs before running `./install`. The configurations for default installation can be changed by editing the `thirdparty_software.cfg` file in the main Monger directory.
 
 ### Tool installation
-Following installation of Monger you may want to download new programs through Monger. To do so simply type
+Following installation of Monger you may want to download new programs via Monger. To do so simply type
   ```bash
 monger install <program_name>
  ```
@@ -44,7 +44,7 @@ For the most part, the program names will be what you'd expect them to be. For e
    ```bash
 monger install samtools
  ```
-*Note: Monger will always look for indicators as to whether a program is already installed and skip installation if found. If you wish to force installation simply add the `-f` argument to the install command.*
+*Note: Monger will always look for indicators as to whether a program is already installed and skip installation if found. If you wish to force installation simply add `-f` to the install command.*
 
 To get a complete list of MongerModules type
    ```bash
