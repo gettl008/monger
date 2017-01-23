@@ -54,9 +54,13 @@ monger avail
 
 *Note: In most cases, modules are set up to automatically look for the commands associated with a program and install if they are unable to find them.*
 
+## Running Monger
+### MongerScripts
+Although Monger modules can be run directly via command line arguments (see `monger run <module> --help` for more info), Monger was mostly designed to run through MongerScripts that enable stable pipeline construction and editing. Templates for running somewhat standard pipelines such as DNA alignment/variant calling are located in the `templates` subdirectory.
 
+There are four main sections of MongerScript that must be present. In order, these are `PROJECT_INFO`, `INPUT_INFO`, `PROGRAM`, and `PROGRAM_ELEMENTS`. Info regarding the variables that go into the first two sections can be found in `templates/template.ms`.
 
-
+ 
 
 
 
