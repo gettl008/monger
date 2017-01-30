@@ -106,7 +106,7 @@ $AUTHOR_INFO"
 				https://ftp.gnu.org/gnu/sed/$current_version.tar.gz
 			fi
 			tar -zxvf $DOWNLOAD_DIR/$current_version.tar.gz
-		}
+		fi
 		cd $DOWNLOAD_DIR/$current_version
 		./configure --prefix=$INSTALL_DIR
 		make
