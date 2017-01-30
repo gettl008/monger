@@ -2,9 +2,10 @@
 #define MAX_ARG_PAGES 32
 set -e
 export SHELL=$(type -p bash)
-freemem=`free | awk '{print $4}'`
-freemem=`echo $freemem | cut -d' ' -f4`
-MEMLIMIT=`expr $freemem \/ 4 \* 3`
+. ~/.bashrc
+# freemem=`free | awk '{print $4}'`
+# freemem=`echo $freemem | cut -d' ' -f4`
+# MEMLIMIT=`expr $freemem \/ 4 \* 3`
 export _JAVA_OPTIONS=-Xmx2g
 ###############################################
 MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`

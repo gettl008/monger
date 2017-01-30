@@ -73,7 +73,7 @@ then
 		if ! `grep -q "export PATH=*$PREFIX/bin*" ~/.bashrc`
 		then
 			. ~/.bashrc
-			sed -i "s|export PATH=.*|export PATH=$PREFIX/bin\:$PATH|" ~/.bashrc
+			sed -i'' -e "s|export PATH=.*|export PATH=$PREFIX/bin\:$PATH|" ~/.bashrc
 		fi
 	else
 		echo "export PATH=$PREFIX/bin:$PATH" >> ~/.bashrc
@@ -92,6 +92,7 @@ then
 fi
 if [ `uname` == "Darwin" ]
 then
+	monger install sed -i $PREFIX -f
 	# HomeBrew
 	if ! type "brew" >/dev/null 2>/dev/null
 	then

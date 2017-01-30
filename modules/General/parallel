@@ -2,6 +2,7 @@
 #define MAX_ARG_PAGES 32
 set -e
 export SHELL=$(type -p bash)
+. ~/.bashrc
 # freemem=`free | awk '{print $4}'`
 # freemem=`echo $freemem | cut -d' ' -f4`
 # MEMLIMIT=`expr $freemem \/ 4 \* 3`
