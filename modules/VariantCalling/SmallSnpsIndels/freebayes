@@ -96,22 +96,20 @@ $AUTHOR_INFO"
 	###### INSTALL MAIN PROGRAM ########
 	####################################
 
-	##########
-	# FASTQC #
-	##########
+	#############
+	# FREEBAYES #
+	#############
 	if ! type "freebayes" >/dev/null 2>/dev/null || [ $FORCE == "TRUE" ]
 	then
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
 		cd $DOWNLOAD_DIR
-		if ! test -f $DOWNLOAD_DIR/fastqc_v0.11.4.zip
+		if ! test -d $DOWNLOAD_DIR/freebayes
 		then
-			wget http://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.4.zip
+			git clone --recursive git://github.com/ekg/freebayes.git
 		fi
-		git clone --recursive git://github.com/ekg/freebayes
-		unzip $DOWNLOAD_DIR/fastqc_v0.11.4.zip
-		cd $INSTALL_DIR/bin
-		ln -sf $DOWNLOAD_DIR/FastQC/fastqc ./
-		chmod 755 $INSTALL_DIR/bin/fastqc
+		cd $DOWNLOAD_DIR/freebayes
+		make
+		cp $DOWNLOAD_DIR/freebayes/bin/* $INSTALL_DIR/bin/
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
 	fi
@@ -215,12 +213,12 @@ $AUTHOR_INFO"
 							exit 1
 						else
 							input_list=$1
-							field_num=`awk -F'[\t ]' '{print NF}' $input_list`
-							name=`awk -F'[\t ]' -v last_field="$field_num" '{print $last_field}' $input_list`
+							field_num=`awk '{print NF}' $input_list`
+							name=`awk -v last_field="$field_num" '{print $last_field}' $input_list`
 							index=1
 							while [ $index -lt $field_num ]
 							do
-								input=`awk -F'[\t ]' -v field="$index" '{print $field}' $input_list`
+								input=`awk -v field="$index" '{print $field}' $input_list`
 								if ! test -f "$input"
 								then
 									echo -e "\nMONGER RUN $MODULE_NAME WARNING: Cannot find input file $input. Skipping...\n"
@@ -288,42 +286,22 @@ $AUTHOR_INFO"
 	log_file=$outdir/logs/$name.log.txt
 	resume_file=$outdir/resume/$name.resume.txt
 	program_log_file=$outdir/program_logs/$name.program_log.txt
+	current_proglog=$outdir/program_logs/$name.current_proglog.txt
 	command_file=$outdir/commands/$name.commands.txt
+	current_command=$outdir/commands/$name.current_command.txt
+	main_start=`date +%s`
 	if ! test -f $resume_file || [ "$force" == "true" ]
 	then
-		echo -e "$MODULE_NAME" > $log_file
+		echo -e "$MODULE_NAME:" > $log_file
 		echo -e "# $MODULE_NAME" > $command_file
 		echo -e "$MODULE_NAME" > $resume_file
 		echo -e "$MODULE_NAME" > $program_log_file
 	fi
 
-	if ! type "samtools" >/dev/null 2>/dev/null 
+	if ! type "freebayes" >/dev/null 2>/dev/null 
 	then
-		monger install samtools
-	else
-		samtools --version > /tmp/samtoolsversion.txt 2>&1
-		if ! `grep -q "samtools 1.3" /tmp/samtoolsversion.txt`
-		then
-			monger install samtools
-		fi
+		monger install freebayes
 	fi
-	if ! test -f $REFERENCE_FASTA.fai
-	then
-		samtools faidx $REFERENCE_FASTA
-	fi
-	if ! type "gatk" >/dev/null 2>/dev/null 
-	then
-		monger install gatk
-	fi
-	ref_base=${REFERENCE_FASTA%.*}
-	picard=`which picard.jar`
-	if ! test -f $ref_base.dict
-	then
-		java -jar $picard CreateSequenceDictionary \
-			R=$REFERENCE_FASTA \
-			O=$ref_base.dict
-	fi
-	gatk=`which gatk.jar`
 	mkdir -p $outdir/intermediates
 	####################################
 	########## MAIN PROGRAM ############
@@ -331,87 +309,7 @@ $AUTHOR_INFO"
 	echo -e " INPUT:$name" >> $log_file
 	# PROGRAM
 	##############################
-	STEP_NAME="haplotype_caller"
-	for file in $inputs
-	do
-		filename=`basename $file`
-		extension="${filename##*.}"
-		subname="${filename%.*}"
-		if [ "`grep "$STEP_NAME.$subname=complete" $resume_file`" == "" ] || [ "$force" == "true" ]
-		then
-			# Process start time
-			start=`date +%s`
-			echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for \"$subname\"."
-			echo -e "$STEP_NAME:" >> $program_log_file
-			#####################################################################################
-			if [ "$extension" == "sam" ]
-			then
-				samtools view -b \
-					$file \
-					> $outdir/intermediates/$subname.bam \
-					2>> $program_log_file
-				file=$outdir/intermediates/$subname.bam
-			fi
-			command="java -jar $gatk \
-				-T HaplotypeCaller \
-				-nct $SUBTHREADS \
-				-R $REFERENCE_FASTA \
-				-I $file \
-				-o $outdir/$subname.g.vcf \
-				--emitRefConfidence GVCF \
-				$haplotypecaller_args \
-				>> $program_log_file 2>&1"
-			eval $command
-			echo -e "$command\n" >> $command_file
-			#####################################################################################
-			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$subname\" complete."
-			main_output="$main_output $outdir/$subname.g.vcf"
-			#################
-			elapsed=`time_elapsed $start`
-			echo -e "  $STEP_NAME=$elapsed" >> $log_file
-			echo "$STEP_NAME.$subname=complete" >> $resume_file
-		else
-			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for file \"$subname\". Skipping..."
-			main_output="$main_output $outdir/$subname.g.vcf"
-		fi
-	done
-	STEP_NAME="combine_vcfs"
-	if [ "$merge" == "true" ]
-	then
-		if [ "`grep "$STEP_NAME.$name=complete" $resume_file`" == "" ] || [ "$force" == "true" ]
-		then
-			# Process start time
-			start=`date +%s`
-			echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for \"$name\"."
-			echo -e "$STEP_NAME:" >> $program_log_file
-			#####################################################################################
-			for file in $main_output
-			do
-				merge_in="$merge_in --variant $file"
-			done
-			command="java -jar $gatk \
-				-T CombineGVCFs \
-				-R $REFERENCE_FASTA \
-				$merge_in \
-				-o $outdir/$name.g.vcf \
-				$combinevcfs_args \
-				>> $program_log_file 2>&1"
-			eval $command
-			echo -e "$command\n" >> $command_file
-			mv $main_output $outdir/intermediates/
-			#####################################################################################
-			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
-			main_output="$outdir/$name.g.vcf"
-			#################
-			elapsed=`time_elapsed $start`
-			echo -e "  $STEP_NAME=$elapsed" >> $log_file
-			echo "$STEP_NAME.$name=complete" >> $resume_file
-		else
-			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for file \"$name\". Skipping..."
-			main_output="$outdir/$name.g.vcf"
-		fi
-	fi
-	STEP_NAME="genotype_gvcfs"
+	STEP_NAME="freebayes"
 	if [ "`grep "$STEP_NAME.$name=complete" $resume_file`" == "" ] || [ "$force" == "true" ]
 	then
 		# Process start time
@@ -419,34 +317,33 @@ $AUTHOR_INFO"
 		echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for \"$name\"."
 		echo -e "$STEP_NAME:" >> $program_log_file
 		#####################################################################################
-		for file in $main_output
-		do
-			genotype_in="$genotype_in --variant $file"
-		done
-		command="java -jar $gatk \
-			-T GenotypeGVCFs \
-			-R $REFERENCE_FASTA \
-			$genotype_in \
-			-o $outdir/$name.vcf \
-			$genotypegvcfs_args \
-			>> $program_log_file 2>&1"
+		command="freebayes \
+			-f $REFERENCE_FASTA \
+			-v $outdir/$name.vcf \
+			$freebayes_args \
+			$inputs" # \
+# 			> $current_proglog 2>&1"
+		echo -e "$command\n" > $current_command
 		eval $command
-		echo -e "$command\n" >> $command_file
-		mv $main_output $outdir/intermediates/
+		cat $current_command  | sed 's|\s\+| |g' >> $command_file
+		# cat $current_proglog >> $program_log_file
 		#####################################################################################
 		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
-		main_output="$outdir/$name.vcf"
+		main_output=$outdir/$name.vcf
 		#################
 		elapsed=`time_elapsed $start`
-		echo -e "  $STEP_NAME=$elapsed" >> $log_file
+		echo -e "$STEP_NAME: $elapsed" >> $log_file
 		echo "$STEP_NAME.$name=complete" >> $resume_file
 	else
 		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for file \"$name\". Skipping..."
-		main_output="$outdir/$name.vcf"
+		main_output=$outdir/$name.vcf
 	fi
 	#####################################################################################
 	# Record output info for downstream modules
-	echo -e "$main_output\t$name" >  $outdir/$name.outputs.txt
+	mkdir -p $outdir/outputs
+	echo -e "$main_output\t$name"  >  $outdir/outputs/$name.outputs.txt
+	main_elapsed=`time_elapsed $main_start`
+	sed -i "s|$MODULE_NAME\:.*|$MODULE_NAME\: $main_elapsed|" $log_file
 	echo -e "MONGER RUN $MODULE_NAME: Complete."
 }
 	

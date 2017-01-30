@@ -8,6 +8,7 @@ export SHELL=$(type -p bash)
 # MEMLIMIT=`expr $freemem \/ 4 \* 3`
 # ulimit -v $MEMLIMIT
 ###############################################
+XMODULE_DIR=
 MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`
 function beginswith { 
 case $2 in 
@@ -103,30 +104,16 @@ function monger.run {
 				-i $mongerscript \
 				-a "PROJECT_INFO $element_opts" \
 				-o $outdir/input_variables/$basename.info.tmp
+			echo "name=$basename" >> $outdir/input_variables/$basename.info.tmp
 			if [ "$io_direction" == "-|" ] ||  [ "$io_direction" == "=|" ]
 			then
 				set +e
 			fi
-# 			echo -e "$module -1 $input_1 -2 $input_2 -3 $input3 \n\
-# --args $outdir/$basename/info.tmp \n\
-# -o $outdir/$basename \n\
-# -n $basename \n\
-# $force\n\n"
-			# $module run -1 $input_1 -2 $input_2 -3 $input_3 \
-			# 	--args $outdir/$basename/info.tmp \
-			# 	-o $outdir \
-			# 	-n $basename \
-			# 	$force
 			$module run -I $input_file \
 				--args $outdir/input_variables/$basename.info.tmp \
 				-o $outdir \
-				$force
-			
+				$force	
 			set -e
-			# if [ "$io_direction" != "-|" ] && test -f $outdir/$basename/outputs.txt
-			# then
-			# 	cat $outdir/$basename/outputs.txt >> $outdir/$basename/outputs.txt
-			# fi
 		else
 			parseMongerScript.pl  \
 				-i $mongerscript \
@@ -170,11 +157,15 @@ function monger.run {
 		mkdir -p $OUTPUT_DIRECTORY/$PROJECT_NAME/commands
 		field_num=`awk -F'[\t ]' '{print NF}' $input_file`
 		basename=`awk -F'[\t ]' -v last_field="$field_num" '{print $last_field}' $input_file | head -1`
+		lasting_basename=$basename
 		main_start=`date +%s`
 		time=`date +%y%m%e_%H%M%S`
-		echo -e "MAIN_$basename:" > $OUTPUT_DIRECTORY/$PROJECT_NAME/logs/$basename.$time.log.txt
-		echo -e "MAIN_$basename:" > $OUTPUT_DIRECTORY/$PROJECT_NAME/program_logs/$basename.$time.program_log.txt
-		echo -e "# MAIN_$basename" > $OUTPUT_DIRECTORY/$PROJECT_NAME/commands/$basename.$time.commands.txt
+		echo -e "##############\n\
+				MAIN_$time:" >> $OUTPUT_DIRECTORY/$PROJECT_NAME/logs/$basename.log.txt
+		echo -e "##############\n\
+				MAIN_$time:" >> $OUTPUT_DIRECTORY/$PROJECT_NAME/program_logs/$basename.program_log.txt
+		echo -e "##############\n\
+				# MAIN_$time:" >> $OUTPUT_DIRECTORY/$PROJECT_NAME/commands/$basename.commands.txt
 		# Set input option to be all files separately
 		element_io="->"
 		element_input=$input_file	
@@ -187,9 +178,9 @@ function monger.run {
 				# Record element start time
 				element_caps=`echo $element | tr '[a-z]' '[A-Z]'`
 				element_start=`date +%s`
-				echo -e "\t$element_caps:" >> $OUTPUT_DIRECTORY/$PROJECT_NAME/logs/$basename.$time.log.txt
-				echo -e "$element_caps:" >> $OUTPUT_DIRECTORY/$PROJECT_NAME/program_logs/$basename.$time.program_log.txt
-				echo -e "# $element_caps" >> $OUTPUT_DIRECTORY/$PROJECT_NAME/commands/$basename.$time.commands.txt
+				echo -e "\t$element_caps:" >> $OUTPUT_DIRECTORY/$PROJECT_NAME/logs/$basename.log.txt
+				echo -e "$element_caps:" >> $OUTPUT_DIRECTORY/$PROJECT_NAME/program_logs/$basename.program_log.txt
+				echo -e "# $element_caps" >> $OUTPUT_DIRECTORY/$PROJECT_NAME/commands/$basename.commands.txt
 				#
 				element_name=$element
 				# Get components (subelements) of current program element
@@ -213,15 +204,25 @@ function monger.run {
 							  [ "$subelement" != "+" ]
 					then
 						# Determine if subelement is beginning of a groupped set of subelements (subprocess i.e. Should be run in parallel)
-						if `echo $subelement | grep -q "^("`
+						if `echo $subelement | grep -q "^("` && [ "$PARALLEL" == "TRUE" ]
 						then
 							subprocess_subelements=${subelement:1}
 							subprocess=true
 						# If subelement is not a component of a subprocess run normally  
-						elif [ "$subprocess" != "true" ]
+						elif [ "$subprocess" != "true" ] || [ "$PARALLEL" != "TRUE" ]
 						then
-							# Record subelement start time
-							subelement_name=`echo $subelement | awk -F':' '{print $1}'`
+							if `echo $subelement | grep -q "^("`
+							then
+								subelement_name=${subelement:1}
+								subprocess=start
+							elif `echo $subelement | grep -q ")$"`
+							then
+								subelement_name=${subelement:0:${#subelement}-1}
+								subprocess=end
+							else
+								# Record subelement start time
+								subelement_name=`echo $subelement | awk -F':' '{print $1}'`
+							fi
 							subelement_opts=`echo $subelement | awk -F':' '{print $2}'`
 							if [ "$element_name" == "$subelement" ]
 							then
@@ -253,6 +254,10 @@ function monger.run {
 							then
 								basename=${basename%.*}
 							fi
+							if [ "$subelement_io" == "+" ] || [ "$subprocess" != "" ]
+							then
+								basename="$basename.$subelement_name"
+							fi
 							force=false
 							for f in $FORCE
 							do
@@ -273,47 +278,62 @@ function monger.run {
 								$subelement_opts
 							if test -f $subelement_outdir/outputs/$basename.outputs.txt
 							then
-								if [ "$subelement_io" != "-|" ] && [ "$subelement_io" != "=|" ]
+								if [ "$subelement_io" != "-|" ] && [ "$subelement_io" != "=|" ] && [ "$subelement_io" != "+" ] && [ "$subprocess" == "" ]
 								then
 									subelement_input=$subelement_outdir/outputs/$basename.outputs.txt
+								elif [ "$subelement_io" == "+" ] || [ "$subprocess" != "" ]
+								then
+									newfield_num=`head -1  $subelement_outdir/outputs/$basename.outputs.txt | awk -F'[\t ]' '{print NF}'`
+									new=`head -1  $subelement_outdir/outputs/$basename.outputs.txt | awk -F'[\t ]' -v last_field="$newfield_num" '{$last_field = ""; print}'`
+									if [ "$subsubelement_out" == "" ]
+									then
+										subsubelement_out="$new"
+									else
+										subsubelement_out="$subsubelement_out $new"
+									fi
+									echo "$subsubelement_out $lasting_basename.$element_name" | tr ' ' '\t' > $OUTPUT_DIRECTORY/$PROJECT_NAME/$element_name/$lasting_basename.current_outputs
+									if [ "$subprocess" == "end" ]
+									then
+										subelement_input=$OUTPUT_DIRECTORY/$PROJECT_NAME/$element_name/$lasting_basename.current_outputs
+										subprocess=""
+									fi
 								fi
 							fi
-							sed 's/^/\t\t/' $subelement_outdir/logs/$basename.log.txt >> $OUTPUT_DIRECTORY/$PROJECT_NAME/logs/$basename.$time.log.txt
-							cat $subelement_outdir/program_logs/$basename.program_log.txt >> $OUTPUT_DIRECTORY/$PROJECT_NAME/program_logs/$basename.$time.program_log.txt
-							cat $subelement_outdir/commands/$basename.commands.txt >> $OUTPUT_DIRECTORY/$PROJECT_NAME/commands/$basename.$time.commands.txt
-						else
-							if `echo $subelement | grep -q ")$"`
+							sed 's/^/\t\t/' $subelement_outdir/logs/$basename.log.txt >> $OUTPUT_DIRECTORY/$PROJECT_NAME/logs/$basename.log.txt
+							cat $subelement_outdir/program_logs/$basename.program_log.txt >> $OUTPUT_DIRECTORY/$PROJECT_NAME/program_logs/$basename.program_log.txt
+							cat $subelement_outdir/commands/$basename.commands.txt >> $OUTPUT_DIRECTORY/$PROJECT_NAME/commands/$basename.commands.txt
+						elif `echo $subelement | grep -q ")$"` && [ "$PARALLEL" == "true" ]
+						then
+							last_subprocess_subelement=${subelement:0:${#subelement}-1}
+							subprocess_subelements="$subprocess_subelements $last_subprocess_subelement"
+							subelement_outdirs=`parallel echo \
+								::: $OUTPUT_DIRECTORY/$PROJECT_NAME/$element_name/ \
+								::: $subprocess_subelements | \
+								tr -d " "`
+							basename=`cut -d" " -f4 $subelement_input | tr "\n" " " | head -1`
+							if [ "$subelement_io" == "=>" ] || [ "$subelement_io" == "=|" ]
 							then
-								last_subprocess_subelement=${subelement:0:${#subelement}-1}
-								subprocess_subelements="$subprocess_subelements $last_subprocess_subelement"
-								subelement_outdirs=`parallel echo \
-									::: $OUTPUT_DIRECTORY/$PROJECT_NAME/$element_name/ \
-									::: $subprocess_subelements | \
-									tr -d " "`
-								basename=`cut -d" " -f4 $subelement_input | tr "\n" " " | head -1`
-								if [ "$subelement_io" == "=>" ] || [ "$subelement_io" == "=|" ]
+								basename=${basename%.*}
+							fi
+							for subprocess_subelement in $subprocess_subelements
+							do
+								if `echo "$FORCE" | grep -q "$subprocess_subelement"` || `echo "$FORCE" | grep -q "$element_name"`
 								then
-									basename=${basename%.*}
+									force="$force true"
+								else
+									force="$force false"
 								fi
-								for subprocess_subelement in $subprocess_subelements
-								do
-									if `echo "$FORCE" | grep -q "$subprocess_subelement"` || `echo "$FORCE" | grep -q "$element_name"`
-									then
-										force="$force true"
-									else
-										force="$force false"
-									fi
-									module_arg=$subelement"_modargs"
-									module_arg=${!module_arg}
-									if [ "$module_arg" != "" ]
-									then
-										module_args="$module_args \"$module_arg\""
-									else
-										module_args="$module_args \"0\""
-									fi
-								done
-								# echo -e "$first_args"
-# 								echo -e \
+								module_arg=$subelement"_modargs"
+								module_arg=${!module_arg}
+								if [ "$module_arg" != "" ]
+								then
+									module_args="$module_args \"$module_arg\""
+								else
+									module_args="$module_args \"0\""
+								fi
+							done
+							# echo -e "$first_args"
+# 							echo -e \
 # "parallel --link run_element\n\
 # ::: $subprocess_subelements\n\
 # ::: $mongerscript\n\
@@ -325,50 +345,51 @@ function monger.run {
 # ::: $force\n\
 # ::: $module_args"
 
-								# subpro_count=`echo $subprocess_subelements | wc -w`
-								# subjobnum=`expr $SUBTHREADS \/ $subpro_count`
-								# if [ $subjobnum -lt 1 ]
-								# then
-								# 	subjobnum=1
-								# elif [ $subjobnum -ge 1 ]
-								# then
-								# 	subjobnum=$subpro_count
-								# fi
-								# re_memlimit=`expr $rm_memlimit \/ $subjobnum`
-								# echo "$run_element_memlimit"
-								parallel -j 1 --link run_element ::: $subprocess_subelements \
-									::: $mongerscript \
-									::: $subelement_io \
-									::: $subelement_outdirs \
-									::: $MODULE_DIR \
-									::: $subelement_input \
-									::: $basename \
-									::: $force \
-									::: $module_args
-								if [ "$subelement_io" != "-|" ] && [ "$subelement_io" != "=|" ]
-								then
-									rm -rf $OUTPUT_DIRECTORY/$PROJECT_NAME/$element_name/$basename.outputs.txt
-									for sub_outdir in $subelement_outdirs
-									do
-										if test -f "$sub_outdir/$basename/output.txt"
-										then
-											cat $sub_outdir/$basename/output.txt >> $OUTPUT_DIRECTORY/$PROJECT_NAME/$element_name/$basename.outputs.txt
-										fi
-										if test -f "$sub_outdir/$basename/log.txt"
-										then
-											cat $sub_outdir/$basename/log.txt >> $OUTPUT_DIRECTORY/$PROJECT_NAME/logs/$basename.log.txt
-										fi
-									done
-								fi
-								subprocess=false
-							else
-								subprocess_subelements="$subprocess_subelements $subelement"
+							# subpro_count=`echo $subprocess_subelements | wc -w`
+							# subjobnum=`expr $SUBTHREADS \/ $subpro_count`
+							# if [ $subjobnum -lt 1 ]
+							# then
+							# 	subjobnum=1
+							# elif [ $subjobnum -ge 1 ]
+							# then
+							# 	subjobnum=$subpro_count
+							# fi
+							# re_memlimit=`expr $rm_memlimit \/ $subjobnum`
+							# echo "$run_element_memlimit"
+							parallel -j 1 --link run_element ::: $subprocess_subelements \
+								::: $mongerscript \
+								::: $subelement_io \
+								::: $subelement_outdirs \
+								::: $MODULE_DIR \
+								::: $subelement_input \
+								::: $basename \
+								::: $force \
+								::: $module_args
+							if [ "$subelement_io" != "-|" ] && [ "$subelement_io" != "=|" ]
+							then
+								rm -rf $OUTPUT_DIRECTORY/$PROJECT_NAME/$element_name/$basename.outputs.txt
+								for sub_outdir in $subelement_outdirs
+								do
+									if test -f "$sub_outdir/$basename/output.txt"
+									then
+										cat $sub_outdir/$basename/output.txt >> $OUTPUT_DIRECTORY/$PROJECT_NAME/$element_name/$basename.outputs.txt
+									fi
+									if test -f "$sub_outdir/$basename/log.txt"
+									then
+										cat $sub_outdir/$basename/log.txt >> $OUTPUT_DIRECTORY/$PROJECT_NAME/logs/$basename.log.txt
+									fi
+								done
 							fi
+							subprocess=false
+						else
+							subprocess_subelements="$subprocess_subelements $subelement"
 						fi
-					elif [  "$subelement" != "+" ]
+					elif [ "$subprocess" == "" ]
 					then
 						subelement_io=$subelement
-					fi 
+					else
+						subsubelement_io=$subelement
+					fi
 					first_subelement=false
 				done
 				if [ "$element_io" != "-|" ] || [ "$element_io" != "=|" ]
@@ -377,16 +398,16 @@ function monger.run {
 				fi
 				# Record element time duration
 				element_elapsed=`time_elapsed $element_start`
-				sed -i "s|$element_caps\:.*|$element_caps\: $element_elapsed|" $OUTPUT_DIRECTORY/$PROJECT_NAME/logs/$basename.$time.log.txt
+				sed -i "s|$element_caps\:.*|$element_caps\: $element_elapsed|" $OUTPUT_DIRECTORY/$PROJECT_NAME/logs/$basename.log.txt
 				################
 				mkdir -p $OUTPUT_DIRECTORY/$PROJECT_NAME/$element_name/element_outputs
-				field_num=`awk -F'[\t ]' '{print NF}' $element_input`
-				name=`awk -F'[\t ]' -v last_field="$field_num" '{print $last_field}' $element_input`
+				field_num=`awk '{print NF}' $subelement_input`
+				name=`awk -v last_field="$field_num" '{print $last_field}' $subelement_input`
 				index=1
 				while [ $index -lt $field_num ]
 				do
-					outfile=`awk -F'[\t ]' -v field="$index" '{print $field}' $element_input`
-					ln -fs $outfile $OUTPUT_DIRECTORY/$PROJECT_NAME/$element_name/element_outputs/
+					outfile=`awk -v field="$index" '{print $field}' $subelement_input`
+					cp $outfile $OUTPUT_DIRECTORY/$PROJECT_NAME/$element_name/element_outputs/
 					index=$(($index + 1))
 				done
 			else
@@ -395,7 +416,7 @@ function monger.run {
 		done
 		# Record element time duration
 		main_elapsed=`time_elapsed $main_start`
-		sed -i "s|MAIN_$basename\:.*|MAIN_$basename\: $main_elapsed|" $OUTPUT_DIRECTORY/$PROJECT_NAME/logs/$basename.$time.log.txt
+		sed -i "s|MAIN_$time\:.*|MAIN_$time\: $main_elapsed|" $OUTPUT_DIRECTORY/$PROJECT_NAME/logs/$basename.log.txt
 	}
 	export -f run_mongerscript
 
@@ -1002,6 +1023,9 @@ then
 elif [ "$function" == "install" ]
 then
 	monger.install $*
+elif [ "$function" == "avail" ]
+then
+	tree $MODULE_DIR
 else
 	echo -e $usage
 	exit 1

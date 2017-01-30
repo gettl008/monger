@@ -18,7 +18,7 @@ function beginswith {
 ###################
 ### MODULE INFO ###
 ###################
-DESCRIPTION="erl 5 is a highly capable, feature-rich programming language with over 29 years of development."
+DESCRIPTION="Perl 5 is a highly capable, feature-rich programming language with over 29 years of development."
 WEBSITE="https://www.perl.org/"
 CITATIONS=""
 MODULE_AUTHOR="Noah Gettle"
@@ -139,8 +139,8 @@ $AUTHOR_INFO"
 'cpan_home' => qq[$ENV{HOME}/.cpan],\n\
 'histfile' => qq[$ENV{HOME}/.cpan/histfile],\n\
 'keep_source_where' => qq[$ENV{HOME}/.cpan/sources],\n\
-'makepl_arg' => q[PREFIX=~/lib/perl5 LIB=~/lib/perl5/lib INSTALLMAN1DIR=~/lib/perl5/man1 INSTALLMAN3DIR=~/lib/perl5/man3]\n\
-'mbuild_arg' => qq[--extra_linker_flags -L$ENV{HOME}/lib]\n\
+'makepl_arg' => q[PREFIX=~/lib/perl5 LIB=~/lib/perl5/lib INSTALLMAN1DIR=~/lib/perl5/man1 INSTALLMAN3DIR=~/lib/perl5/man3],\n\
+'mbuild_arg' => qq[--extra_linker_flags -L$ENV{HOME}/lib],\n\
 'mbuildpl_arg' => qq[--install_base $ENV{HOME}],"\
 			> ~/.cpan/CPAN/MyConfig.pm
 	fi
@@ -172,7 +172,7 @@ $AUTHOR_INFO"
 		echo -e "'mbuildpl_arg' => q[--install_base=$INSTALL_DIR]," >> ~/.cpan/CPAN/MyConfig.pm
 	fi
 	
-	if ! `echo $PERL5LIB | grep -q "$INSTALL_DIR/lib/perl5/lib"`
+	if ! `echo "$PERL5LIB" | grep -q "$INSTALL_DIR/lib/perl5/lib"`
 	then
 		if `grep -q "export PERL5LIB=" ~/.bashrc`
 		then
@@ -186,7 +186,22 @@ $AUTHOR_INFO"
 		fi
 		. ~/.bashrc
 	fi
-	
+	. ~/.bashrc
+	if ! `echo "$PERL5LIB" | grep -q "$HOME/perl5/lib/perl5"`
+	then
+		if `grep -q "export PERL5LIB=" ~/.bashrc`
+		then
+			if ! `grep -q "export PERL5LIB=*$HOME/perl5/lib/perl5*" ~/.bashrc`
+			then
+				. ~/.bashrc
+				sed -i "s|export PERL5LIB=.*|export PERL5LIB=$HOME/perl5/lib/perl5\:$PERL5LIB|" ~/.bashrc
+			fi
+		else
+			echo "export PERL5LIB=~/perl5/lib/perl5:$PERL5LIB" >> ~/.bashrc
+		fi
+		cpan App::cpanminus
+		. ~/.bashrc
+	fi
 }
 
 ############################################################

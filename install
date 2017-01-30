@@ -80,7 +80,6 @@ then
 	fi
 	. ~/.bashrc
 fi
-
 cp $monger_dir/monger $monger_dir/extras/*  $PREFIX/bin/
 
 
@@ -119,6 +118,7 @@ monger install picard -i $PREFIX
 monger install perl5 -i $PREFIX
 monger install python2.7 -i $PREFIX
 monger install samtools -i $PREFIX
+monger install tree -i $PREFIX
 #monger install parallel -i $PREFIX
 ###############################################
 ###############################################

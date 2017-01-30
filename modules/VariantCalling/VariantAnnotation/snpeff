@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-. ~/.bashrc
 #define MAX_ARG_PAGES 32
 set -e
 export SHELL=$(type -p bash)
+shopt -s expand_aliases
+source ~/.bashrc
 freemem=`free | awk '{print $4}'`
 freemem=`echo $freemem | cut -d' ' -f4`
 MEMLIMIT=`expr $freemem \/ 4 \* 3`
@@ -20,15 +21,121 @@ function beginswith {
 ###################
 ### MODULE INFO ###
 ###################
-DESCRIPTION="Replace read groups in a BAM file."
-WEBSITE=
-CITATIONS=
+DESCRIPTION="SnpEff is a variant annotation and effect prediction tool. It annotates and predicts the effects of variants on genes (such as amino acid changes)."
+WEBSITE="http://snpeff.sourceforge.net/SnpEff.html"
+CITATIONS="\"A program for annotating and predicting the effects of single nucleotide polymorphisms, SnpEff: SNPs in the genome of Drosophila melanogaster strain w1118; iso-2; iso-3.\", Cingolani P, Platts A, Wang le L, Coon M, Nguyen T, Wang L, Land SJ, Lu X, Ruden DM. Fly (Austin). 2012 Apr-Jun;6(2):80-92. PMID: 22728672 [PubMed - in process]"
 MODULE_AUTHOR="Noah Gettle"
 YEAR_WRITTEN="2016"
 ###############################################
 MODULE_INFO="DESCRIPTION:\n$DESCRIPTION\nWEBSITE:\n$WEBSITE\nCITATION:\n$CITATION"
 AUTHOR_INFO="$MODULE_AUTHOR $YEAR_WRITTEN"
 
+function mongerinstall {
+	MODULE_NAME=$1
+	shift
+	MODULE_INFO=$1
+	shift
+	AUTHOR_INFO=$1
+	shift
+	module_name=`echo $MODULE_NAME | tr "[A-Z]" "[a-z]"`
+	SUBTHREADS=1
+	####################################
+	############ USAGE #################
+	####################################
+	usage="SYNOPSIS:\nmonger install $module_name\n$MODULE_INFO\n\
+OPTIONS:\n\
+  -i | --install_dir [DIR]\tInstallation directory [/usr/local/]\n\
+  -f | --force\t\t\tOverwrite existing program executables.\n\
+  -h | --help\t\t\tPrint help message\n\n\
+AUTHOR:\n\
+$AUTHOR_INFO"
+  
+	####################################
+	######## INPUT PROCESSING ##########
+	####################################
+	INSTALL_DIR=/usr/local
+	FORCE=FALSE
+	while [ "$1" != "" ]
+	do
+		case $1 in
+			-i | --install_dir)	
+				if ! `beginswith "-" $2`
+				then 
+					shift
+					INSTALL_DIR=$1
+				fi;;
+			-f | --force)	
+				FORCE=TRUE;;
+			-h | --help)	
+				echo -e $usage
+				exit 1;;
+			*)				
+				echo -e "\nMONGER RUN $MODULE_NAME ERROR: $1 is not a valid option.\n$usage"
+				exit 1						
+		esac
+		shift
+	done
+
+	####################################
+
+	PATH_SEP=`echo $PATH | sed 's|:| |g'`
+	LD_LIBRARY_PATH_SEP=`echo $LD_LIBRARY_PATH | sed 's|:| |g'`
+	INCLUDE_SEP=`echo $INCLUDE | sed 's|:| |g'`
+
+	cur_dir=`pwd`
+	DOWNLOAD_DIR=$INSTALL_DIR/soft
+	mkdir -p $DOWNLOAD_DIR
+
+	###############################################
+
+	####################################
+	###### INSTALL DEPENDENCIES ########
+	####################################
+
+	###############################################
+
+	####################################
+	###### INSTALL MAIN PROGRAM ########
+	####################################
+
+	#############
+	# FREEBAYES #
+	#############
+	if ! type "snpEff.jar" >/dev/null 2>/dev/null || [ $FORCE == "TRUE" ]
+	then
+		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
+		cd $DOWNLOAD_DIR
+		if ! test -d $DOWNLOAD_DIR/snpEff
+		then
+			if ! test -f $DOWNLOAD_DIR/snpEff_latest_core.zip
+			then
+				wget http://sourceforge.net/projects/snpeff/files/snpEff_latest_core.zip
+			fi
+			unzip $DOWNLOAD_DIR/snpEff_latest_core.zip
+		fi
+		ln -sf $DOWNLOAD_DIR/snpEff/SnpSift.jar $DOWNLOAD_DIR/snpEff/snpEff.jar $INSTALL_DIR/bin/
+		make
+		cp $DOWNLOAD_DIR/freebayes/bin/* $INSTALL_DIR/bin/
+	else
+		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
+	fi
+	snpeff_dir=`which snpEff.jar`
+	snpeff_dir=`dirname $snpeff_dir`
+	if `grep -q "alias snpEff.jar=" ~/.bashrc`
+	then
+		sed -i "s|alias snpEff.jar=.*|alias snpEff.jar='java \-jar $snpeff_dir/snpEff.jar'|" ~/.bashrc
+	else
+		echo "alias snpEff.jar='java -jar $snpeff_dir/snpEff.jar'" >> ~/.bashrc
+	fi
+	snpsift_dir=`which SnpSift.jar`
+	snpsift_dir=`dirname $snpsift_dir`
+	if `grep -q "alias SnpSift.jar=" ~/.bashrc`
+	then
+		sed -i "s|alias SnpSift.jar=.*|alias SnpSift.jar='java \-jar $snpsift_dir/SnpSift.jar'|" ~/.bashrc
+	else
+		echo "alias SnpSift.jar='java -jar $snpsift_dir/SnpSift.jar'" >> ~/.bashrc
+	fi
+}
 function run {
 	MODULE_NAME=$1
 	shift
@@ -79,7 +186,6 @@ $AUTHOR_INFO"
 	# Program specific defaults
 	sort=c
 	output_format=bam
-	merge=false
 	
 	#################
 	while [ "$1" != "" ]
@@ -91,7 +197,7 @@ $AUTHOR_INFO"
 					shift
 					if ! test -f $1
 					then
-						echo -e "\nMONGER RUN $MODULE_NAME ERROR: Cannot find input file $1"
+						echo -e "\nMONGER RUN $MODULE_NAME ERROR: Cannot find input file $1."
 						exit 1
 					else
 						in1=$1
@@ -122,19 +228,19 @@ $AUTHOR_INFO"
 			-I | --input_list)
 				if ! `beginswith "-" "$2"`
 				then
-						shift
-						if ! test -f $1
+					shift
+					if ! test -f $1
 						then
 							echo -e "\nMONGER RUN $MODULE_NAME ERROR: Cannot find input file list $1.\n"
 							exit 1
 						else
 							input_list=$1
-							field_num=`awk -F'[\t ]' '{print NF}' $input_list`
-							name=`awk -F'[\t ]' -v last_field="$field_num" '{print $last_field}' $input_list`
+							field_num=`awk '{print NF}' $input_list`
+							name=`awk -v last_field="$field_num" '{print $last_field}' $input_list`
 							index=1
 							while [ $index -lt $field_num ]
 							do
-								input=`awk -F'[\t ]' -v field="$index" '{print $field}' $input_list`
+								input=`awk -v field="$index" '{print $field}' $input_list`
 								if ! test -f "$input"
 								then
 									echo -e "\nMONGER RUN $MODULE_NAME WARNING: Cannot find input file $input. Skipping...\n"
@@ -145,7 +251,7 @@ $AUTHOR_INFO"
 								index=$(($index + 1))
 							done
 						fi
-				fi;;
+				fi;;	
 			-n | --name)
 				if ! `beginswith "-" "$2"`
 				then
@@ -186,33 +292,6 @@ $AUTHOR_INFO"
 			*)
 				echo -e "\nMONGER RUN $MODULE_NAME ERROR: $1 is not a valid option.\n$usage"
 				exit 1;;
-			# Align specific args
-			-s | --sort)
-				if ! `beginswith "-" "$2"`
-				then
-					shift
-					temp=`echo "$1" | tr '[A-Z]' '[a-z]'`
-					if [ "$temp" == "c" ] || [ "$temp" == "n" ]
-					then
-						sort=$temp
-					else
-						echo -e "MONGER RUN $MODULE_NAME WARNING: Sort method must be either by alignment coordinate (c) or by read name (n). Using default \"c\"."
-					fi
-				fi;;
-			-O | --output_format)
-				if ! `beginswith "-" "$2"`
-				then
-					shift
-					temp=`echo "$1" | tr '[A-Z]' '[a-z]'`
-					if [ "$temp" == "bam" ] || "$temp" == "sam"
-					then
-						output_format=$temp
-					else
-						echo -e "MONGER RUN $MODULE_NAME WARNING: Output format must be either \"bam\" or \"sam\". Using default \"bam\"."
-					fi
-				fi;;
-			-m | --merge)
-				merge=true;;
 		esac
 		shift
 	done
@@ -240,44 +319,18 @@ $AUTHOR_INFO"
 		echo -e "$MODULE_NAME" > $resume_file
 		echo -e "$MODULE_NAME" > $program_log_file
 	fi
-
-	#######################################################
-	##### COMMAND CHECK AND INSTALL REQUIRED PROGRAMS #####
-	#######################################################
-	if ! type "samtools" >/dev/null 2>/dev/null 
+	if ! type "snpEff.jar" >/dev/null 2>/dev/null 
 	then
-		monger install samtools
-	else
-		samtools --version > /tmp/samtoolsversion.txt 2>&1
-		if ! `grep -q "samtools 1.3" /tmp/samtoolsversion.txt`
-		then
-			monger install samtools
-		fi
+		monger install snpeff
 	fi
-	if ! type "picard" >/dev/null 2>/dev/null 
-	then
-		monger install picard
-	fi
-	if ! type "gatk" >/dev/null 2>/dev/null 
-	then
-		monger install gatk
-	fi
-	#######################################################
-
-	mkdir -p $outdir/intermediates/
-	if ! test -f $REFERENCE_FASTA.fai
-	then
-		samtools faidx $REFERENCE_FASTA
-	fi
-	picard=`which picard.jar`
 	mkdir -p $outdir/intermediates
 	####################################
 	########## MAIN PROGRAM ############
 	####################################
-	echo -e "Inputs: $inputs" >> $log_file
+	echo -e " INPUT:$name" >> $log_file
 	# PROGRAM
 	##############################
-	STEP_NAME="add_rg"
+	STEP_NAME="snpeff"
 	if [ "`grep "$STEP_NAME.$name=complete" $resume_file`" == "" ] || [ "$force" == "true" ]
 	then
 		# Process start time
@@ -285,129 +338,36 @@ $AUTHOR_INFO"
 		echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for \"$name\"."
 		echo -e "$STEP_NAME:" >> $program_log_file
 		#####################################################################################
-		if [ "$READGROUP_INFO" == "" ]
+		if [ "$snpeff_database" == "" ]
 		then
-			echo -e "MONGER RUN $MODULE_NAME WARNING: No specified read group info provided. Monger will add some info but for the sake of accuracy this should be provided in the provided MongerScript or arguments (READGROUP_INFO).\nSee https://samtools.github.io/hts-specs/SAMv1.pdf for guidelines on formatting a RG line."
-			READGROUP_INFO="RGID=$PROJECT_NAME-$name RGLB=$PROJECT_NAME RGPL=ILLUMINA RGPU=Unknown RGSM=$name"
+			echo -e "MONGER RUN $MODULE_NAME ERROR: You must specify a SnpEff database to use with the variable \'snpeff_database\'. To view available prebuild genomes type 'snpEff.jar databases'. If yours is not available you can build one by following the instructions @ \"http://snpeff.sourceforge.net/SnpEff_manual.html#databases\"."
+			exit 1
 		fi
-		command="java -jar $picard AddOrReplaceReadGroups \
-			$picardaddorreplacereadgroups_args \
-			I=$in1 \
-			O=$outdir/$name.rg.sam \
-			$READGROUP_INFO \
-			VALIDATION_STRINGENCY=SILENT \
- 			> $current_proglog 2>&1"
+		command="snpEff.jar eff \
+			$snpeff_database \
+			$inputs \
+			$snpeff_args \
+			1> $outdir/$name.vcf" # \
+# 			2> $current_proglog"
 		echo -e "$command\n" > $current_command
 		eval $command
 		cat $current_command  | sed 's|\s\+| |g' >> $command_file
-		cat $current_proglog >> $program_log_file
-		if test -f "$in2"
-		then
-			command="java -jar $picard AddOrReplaceReadGroups \
-				$picardaddorreplacereadgroups_args \
-				I=$in3 \
-				O=$outdir/$name.unpaired.rg.sam \
-				$READGROUP_INFO \
-	 			> $current_proglog 2>&1"
-		echo -e "$command\n" > $current_command
-		eval $command
-		cat $current_command  | sed 's|\s\+| |g' >> $command_file
-		cat $current_proglog >> $program_log_file
-		fi
+		# cat $current_proglog >> $program_log_file
 		#####################################################################################
 		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
-		main_output=$outdir/$name.rg.sam
-		unpaired_output=$outdir/$name.unpaired.rg.sam
+		main_output=$outdir/$name.vcf
 		#################
 		elapsed=`time_elapsed $start`
 		echo -e "$STEP_NAME: $elapsed" >> $log_file
 		echo "$STEP_NAME.$name=complete" >> $resume_file
 	else
 		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for file \"$name\". Skipping..."
-		main_output=$outdir/$name.rg.sam
-		unpaired_output=$outdir/$name.unpaired.rg.sam
-	fi
-	##############################
-	STEP_NAME="sort_alignments"
-	if [ "sort" != "" ]
-	then
-		if [ "`grep "$STEP_NAME.$name=complete" $resume_file`" == "" ] || [ "$force" == "true" ]
-		then
-			# Process start time
-			start=`date +%s`
-			echo -e "MONGER RUN $MODULE_NAME: Beginning step \"$STEP_NAME\" for \"$name\"."
-			echo -e "$STEP_NAME:" >> $program_log_file
-			#####################################################################################
-			if [ "sort" == "n" ]
-			then
-				in_sort="-$sort"
-			fi
-			command="samtools sort \
-				$insort \
-				-@ $SUBTHREADS \
-				-o $outdir/$name.sort.$output_format \
-				$main_output \
-				> $current_proglog 2>&1"
-			echo -e "$command\n" > $current_command
-			eval $command
-			cat $current_command  | sed 's|\s\+| |g' >> $command_file
-			cat $current_proglog >> $program_log_file
-			if [ "$output_format" == "bam" ]
-			then
-				command="samtools index $outdir/$name.sort.$output_format \
-					> $current_proglog 2>&1"
-				echo -e "$command\n" > $current_command
-				eval $command
-				cat $current_command  | sed 's| \+| |g' >> $command_file
-				cat $current_proglog >> $program_log_file
-			fi
-			mv $main_output $outdir/intermediates/
-			if test -f "$unpaired_output"
-			then
-				command="samtools sort \
-					$sort \
-					-@ $SUBTHREADS \
-					-o $outdir/$name.unpaired.sort.$output_format \
-					$unpaired_output \
-					> $current_proglog 2>&1"
-				echo -e "$command\n" > $current_command
-				eval $command
-				cat $current_command  | sed 's|\s\+| |g' >> $command_file
-				cat $current_proglog >> $program_log_file
-				if [ "$output_format" == "bam" ]
-				then
-					command="samtools index $outdir/$name.unpaired.sort.$output_format \
-						> $current_proglog 2>&1"
-					echo -e "$command\n" > $current_command
-					eval $command
-					cat $current_command  | sed 's|\s\+| |g' >> $command_file
-					cat $current_proglog >> $program_log_file
-				fi
-				mv $unpaired_output $outdir/intermediates/
-			fi
-			#####################################################################################
-			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
-			main_output=$outdir/$name.sort.$output_format
-			unpaired_output=$outdir/$name.unpaired.sort.$output_format
-			#################
-			elapsed=`time_elapsed $start`
-			echo -e "$STEP_NAME: $elapsed" >> $log_file
-			echo "$STEP_NAME.$name=complete" >> $resume_file
-		else
-			echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" already complete for file \"$name\". Skipping..."
-			main_output=$outdir/$name.sort.$output_format
-			unpaired_output=$outdir/$name.unpaired.sort.$output_format
-		fi
+		main_output=$outdir/$name.vcf
 	fi
 	#####################################################################################
 	# Record output info for downstream modules
 	mkdir -p $outdir/outputs
-	if test -f "$unpaired_output"
-	then
-		echo -e "$main_output\t$unpaired_output\t$name" >  $outdir/outputs/$name.outputs.txt
-	else
-		echo -e "$main_output\t$name" >  $outdir/outputs/$name.outputs.txt
-	fi
+	echo -e "$main_output\t$name"  >  $outdir/outputs/$name.outputs.txt
 	main_elapsed=`time_elapsed $main_start`
 	sed -i "s|$MODULE_NAME\:.*|$MODULE_NAME\: $main_elapsed|" $log_file
 	echo -e "MONGER RUN $MODULE_NAME: Complete."

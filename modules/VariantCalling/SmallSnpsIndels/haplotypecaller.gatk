@@ -127,12 +127,12 @@ $AUTHOR_INFO"
 							exit 1
 						else
 							input_list=$1
-							field_num=`awk -F'[\t ]' '{print NF}' $input_list`
-							name=`awk -F'[\t ]' -v last_field="$field_num" '{print $last_field}' $input_list`
+							field_num=`awk '{print NF}' $input_list`
+							name=`awk -v last_field="$field_num" '{print $last_field}' $input_list`
 							index=1
 							while [ $index -lt $field_num ]
 							do
-								input=`awk -F'[\t ]' -v field="$index" '{print $field}' $input_list`
+								input=`awk -v field="$index" '{print $field}' $input_list`
 								if ! test -f "$input"
 								then
 									echo -e "\nMONGER RUN $MODULE_NAME WARNING: Cannot find input file $input. Skipping...\n"
@@ -261,11 +261,23 @@ $AUTHOR_INFO"
 			#####################################################################################
 			if [ "$extension" == "sam" ]
 			then
-				samtools view -b \
+				command="samtools view -b \
 					$file \
-					> $outdir/intermediates/$subname.bam \
-					2>> $program_log_file
+					> $outdir/intermediates/$subname.bam" # \
+# 					2>>  $current_proglog"
+				echo -e "$command\n" > $current_command
+				eval $command
+				cat $current_command  | sed 's|\s\+| |g' >> $command_file
+				# cat $current_proglog >> $program_log_file
 				file=$outdir/intermediates/$subname.bam
+			fi
+			if ! test -f $file.bai
+			then
+				command="samtools index $file" # \
+					#>  $current_proglog"
+				echo -e "$command\n" > $current_command
+				eval $command
+				cat $current_command  | sed 's|\s\+| |g' >> $command_file
 			fi
 			command="java -jar $gatk \
 				-T HaplotypeCaller \
@@ -366,7 +378,6 @@ $AUTHOR_INFO"
 		main_output="$outdir/$name.vcf"
 	fi
 	#####################################################################################
-	# Record output info for downstream modules
 	# Record output info for downstream modules
 	mkdir -p $outdir/outputs
 	echo -e "$main_output\t$name" >  $outdir/outputs/$name.outputs.txt

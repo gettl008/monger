@@ -127,12 +127,12 @@ $AUTHOR_INFO"
 							exit 1
 						else
 							input_list=$1
-							field_num=`awk -F'[\t ]' '{print NF}' $input_list`
-							name=`awk -F'[\t ]' -v last_field="$field_num" '{print $last_field}' $input_list`
+							field_num=`awk '{print NF}' $input_list`
+							name=`awk -v last_field="$field_num" '{print $last_field}' $input_list`
 							index=1
 							while [ $index -lt $field_num ]
 							do
-								input=`awk -F'[\t ]' -v field="$index" '{print $field}' $input_list`
+								input=`awk -v field="$index" '{print $field}' $input_list`
 								if ! test -f "$input"
 								then
 									echo -e "\nMONGER RUN $MODULE_NAME WARNING: Cannot find input file $input. Skipping...\n"
@@ -212,7 +212,7 @@ $AUTHOR_INFO"
 		echo -e "$MODULE_NAME" > $program_log_file
 	fi
 
-	if ! type "samtools" >/dev/null 2>/dev/null 
+	if ! type "samtools" > /dev/null 2>/dev/null 
 	then
 		monger install samtools
 	else
@@ -222,6 +222,17 @@ $AUTHOR_INFO"
 			monger install samtools
 		fi
 	fi
+	if ! type "bcftools" > /dev/null 2>/dev/null 
+	then
+		monger install bcftools
+	else
+		bcftools --version > /tmp/bcftoolsversion.txt 2>&1
+		if ! `grep -q "bcftools 1.3" /tmp/bcftoolsversion.txt`
+		then
+			monger install bcftools
+		fi
+		rm /tmp/bcftoolsversion.txt
+	fi 
 	if ! test -f $REFERENCE_FASTA.fai
 	then
 		samtools faidx $REFERENCE_FASTA
@@ -245,28 +256,28 @@ $AUTHOR_INFO"
 			--reference $REFERENCE_FASTA \
 			$inputs \
 			| bcftools call -vm -O z \
-			-o $outdir/$name.vcf.gz \
-			> $current_proglog 2>&1"
+			-o $outdir/$name.vcf.gz" # \
+# 			> $current_proglog 2>&1"
 		echo -e "$command\n" > $current_command
 		eval $command
 		cat $current_command  | sed 's|\s\+| |g' >> $command_file
-		cat $current_proglog >> $program_log_file
+		# cat $current_proglog >> $program_log_file
 		command="tabix \
 			-p vcf \
-			$outdir/$name.vcf.gz \
-			> $current_proglog 2>&1"
+			$outdir/$name.vcf.gz" # \
+# 			> $current_proglog 2>&1"
 		echo -e "$command\n" > $current_command
 		eval $command
 		cat $current_command  | sed 's|\s\+| |g' >> $command_file
-		cat $current_proglog >> $program_log_file
+		# cat $current_proglog >> $program_log_file
 		command="bgzip -df \
 			-@ $SUBTHREADS \
-			$outdir/$name.vcf.gz \
-			> $current_proglog 2>&1"
+			$outdir/$name.vcf.gz" # \
+# 			> $current_proglog 2>&1"
 		echo -e "$command\n" > $current_command
 		eval $command
 		cat $current_command  | sed 's|\s\+| |g' >> $command_file
-		cat $current_proglog >> $program_log_file
+		# cat $current_proglog >> $program_log_file
 		#####################################################################################
 		echo -e "MONGER RUN $MODULE_NAME: Step \"$STEP_NAME\" for \"$name\" complete."
 		main_output=$outdir/$name.vcf

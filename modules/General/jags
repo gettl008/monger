@@ -2,10 +2,9 @@
 #define MAX_ARG_PAGES 32
 set -e
 export SHELL=$(type -p bash)
-freemem=`free | awk '{print $4}'`
-freemem=`echo $freemem | cut -d' ' -f4`
-MEMLIMIT=`expr $freemem \/ 4 \* 3`
-export _JAVA_OPTIONS=-Xmx2g
+# freemem=`free | awk '{print $4}'`
+# freemem=`echo $freemem | cut -d' ' -f4`
+# MEMLIMIT=`expr $freemem \/ 4 \* 3`
 ###############################################
 MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`
 module_name=`basename "$0" | tr "[A-Z]" "[a-z]"`
@@ -19,19 +18,14 @@ function beginswith {
 ###################
 ### MODULE INFO ###
 ###################
-DESCRIPTION="HTSeq is a Python package that provides infrastructure to process data from high-throughput sequencing assays."
-WEBSITE="http://www-huber.embl.de/HTSeq/doc/overview.html"
-CITATIONS="Anders, S., P. T. Pyl, and W. Huber. 2014. HTSeq – A Python framework to work with high-throughput sequencing data HTSeq – A Python framework to work with high-throughput sequencing data. Bioinformatics. 31:0–5."
+DESCRIPTION="JAGS is Just Another Gibbs Sampler.  It is a program for analysis of Bayesian hierarchical models using Markov Chain Monte Carlo (MCMC) simulation  not wholly unlike BUGS."
+WEBSITE="http://mcmc-jags.sourceforge.net/"
+CITATIONS=""
 MODULE_AUTHOR="Noah Gettle"
 YEAR_WRITTEN="2016"
+current_version="JAGS-4.2.0"
 ###############################################
-MODULE_INFO=\
-"DESCRIPTION:\n\
-$DESCRIPTION\n\n\
-WEBSITE:\n\
-$WEBSITE\n\n\
-CITATION:\n\
-$CITATION\n\n"
+MODULE_INFO="DESCRIPTION:\n$DESCRIPTION\nWEBSITE:\n$WEBSITE\nCITATION:\n$CITATION"
 AUTHOR_INFO="$MODULE_AUTHOR $YEAR_WRITTEN"
 
 function mongerinstall {
@@ -46,10 +40,7 @@ function mongerinstall {
 	####################################
 	############ USAGE #################
 	####################################
-	usage=\
-"SYNOPSIS:\n\
-monger install $module_name\n\n\
-$MODULE_INFO\
+	usage="SYNOPSIS:\nmonger install $module_name\n$MODULE_INFO\n\
 OPTIONS:\n\
   -i | --install_dir [DIR]\tInstallation directory [/usr/local/]\n\
   -f | --force\t\t\tOverwrite existing program executables.\n\	
@@ -94,37 +85,45 @@ $AUTHOR_INFO"
 	####### INSTALL DEPENDENCIES #######
 	####################################
 
-	#############
-	# PYTHON2.7 #
-	#############
-	monger install python2.7 -i $INSTALL_DIR
-	pythondir=`which python2`
-	pythondir=`dirname $pythondir`
-	pythondir=`dirname $pythondir`
-	export PYTHONPATH=$pythondir/lib/python2.7
-	#########
-	pip2 install numpy
-	pip2 install pysam
-	
-
 	###############################################
 
 	####################################
-	####### INSTALL MAIN PROGRAM #######
+	###### INSTALL MAIN PROGRAM ########
 	####################################
 
-	#########
-	# HTSEQ #
-	#########
-	if ! type "htseq-count" >/dev/null 2>/dev/null || [ $FORCE == "TRUE" ]
+	########
+	# JAGS #
+	########
+	if ! type "jags" >/dev/null 2>/dev/null || [ "$FORCE" == "TRUE" ]
 	then
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
-		pip2 install HTSeq
-		if ! type "htseq-count" >/dev/null 2>/dev/null 
+		cd $DOWNLOAD_DIR
+		if ! test -d $DOWNLOAD_DIR/JAGS-4.2.0
 		then
-			echo "MONGER INSTALL ERROR: Something went wrong when installing HTSEQ. Sorry, but you may need to try manual installation."
+			rm -rf $DOWNLOAD_DIR/download
+			wget https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/Source/JAGS-4.2.0.tar.gz/download
+			tar -zxvf $DOWNLOAD_DIR/download
+			rm -rf $DOWNLOAD_DIR/download
+		fi
+		cd $DOWNLOAD_DIR/JAGS-4.2.0
+		./configure --prefix=$INSTALL_DIR
+		make
+		make install
+		if ! type "jags" >/dev/null 2>/dev/null 
+		then
+			echo "MONGER INSTALL ERROR: Something went wrong when installing $MODULE_NAME. Sorry, but you may need to try manual installation."
 			exit 1
 		fi
+
+		if ! test -f $DOWNLOAD_DIR/rjags_4-6.tar.gz
+		then
+			wget https://cran.r-project.org/src/contrib/rjags_4-6.tar.gz
+		fi
+echo -e \
+"install.packages(\"$DOWNLOAD_DIR/rjags_4-6.tar.gz\",repos = NULL, type=\"source\", configure.args=c(\"--enable-rpath\", \"--with-jags-libdir=$INSTALL_DIR/lib\"))\n\
+install.packages(\"R2jags\",contriburl=\"http://cran.rstudio.com/src/contrib/\")" \
+> $DOWNLOAD_DIR/install_rjags.R
+		Rscript $DOWNLOAD_DIR/install_rjags.R	
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
 	fi
@@ -142,6 +141,6 @@ then
 else
 	echo -e \
 "SYNOPSIS:\n\
-monger [run|install] $module_name\n\n$MODULE_INFO$AUTHOR_INFO"
+monger [run|install] $module_name\n$MODULE_INFO\n$AUTHOR_INFO"
 	exit 1
 fi

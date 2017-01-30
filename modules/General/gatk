@@ -105,7 +105,7 @@ $AUTHOR_INFO"
 	###########
 	# GATK #
 	###########
-	if ! type "gatk" >/dev/null 2>/dev/null || [ $FORCE == "TRUE" ]
+	if ! type "gatk.jar" >/dev/null 2>/dev/null || [ $FORCE == "TRUE" ]
 	then
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
 		cd $DOWNLOAD_DIR
@@ -124,8 +124,9 @@ $AUTHOR_INFO"
 			newline="alias gatk=\"java -jar $installpath\/bin\/gatk.jar\""
 			sed -i "s|alias gatk=.*|$newline|" ~/.bashrc
 		fi
+		chmod 755 $INSTALL_DIR/bin/gatk.jar
 		. ~/.bashrc
-		if ! type "gatk" >/dev/null 2>/dev/null 
+		if ! type "gatk.jar" >/dev/null 2>/dev/null 
 		then
 			echo "MONGER INSTALL ERROR: Something went wrong when installing GATK. Sorry, but you may need to try manual installation."
 			exit 1

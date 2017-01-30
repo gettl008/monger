@@ -6,6 +6,10 @@ freemem=`free | awk '{print $4}'`
 freemem=`echo $freemem | cut -d' ' -f4`
 MEMLIMIT=`expr $freemem \/ 4 \* 3`
 export _JAVA_OPTIONS=-Xmx2g
+pythondir=`which python2`
+pythondir=`dirname $pythondir`
+pythondir=`dirname $pythondir`
+export PYTHONPATH=$pythondir/lib/python2.7
 ###############################################
 MODULE_NAME=`basename "$0" | tr "[a-z]" "[A-Z]"`
 module_name=`basename "$0" | tr "[A-Z]" "[a-z]"`
@@ -224,6 +228,10 @@ $AUTHOR_INFO"
 			monger install samtools
 		fi
 	fi
+	if ! type "htseq-count" >/dev/null 2>/dev/null
+	then
+		monger install htseq
+	fi
 	#######################################################
 
 	if ! type "samtools" >/dev/null 2>/dev/null 
@@ -311,9 +319,13 @@ $AUTHOR_INFO"
 		if test -f "$REFERENCE_GFF" && ! test -f "$REFERENCE_GTF"
 		then
 			ref_base="${REFERENCE_GFF%.*}"
+			if ! type "gffread" >/dev/null 2>/dev/null
+			then
+				monger install gffread
+			fi
 			gffread $REFERENCE_GFF \
-			-M --force-exons \
-			-o $ref_base.gtf -T 
+				-M --force-exons \
+				-o $ref_base.gtf -T 
 			REFERENCE_GTF=$ref_base.gtf
 		fi
 		export PYTHONPATH=$INSTALL_DIR/lib/python2.7
