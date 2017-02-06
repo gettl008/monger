@@ -24,7 +24,7 @@ WEBSITE="http://www.zlib.net/"
 CITATIONS=""
 MODULE_AUTHOR="Noah Gettle"
 YEAR_WRITTEN="2016"
-current_version="sed-4.3"
+current_version="sed-4.2"
 ###############################################
 MODULE_INFO="DESCRIPTION:\n$DESCRIPTION\nWEBSITE:\n$WEBSITE\nCITATION:\n$CITATION"
 AUTHOR_INFO="$MODULE_AUTHOR $YEAR_WRITTEN"
@@ -103,7 +103,7 @@ $AUTHOR_INFO"
 		then
 			if ! test -f $DOWNLOAD_DIR/$current_version.tar.gz
 			then
-				https://ftp.gnu.org/gnu/sed/$current_version.tar.gz
+				wget https://ftp.gnu.org/gnu/sed/$current_version.tar.gz
 			fi
 			tar -zxvf $DOWNLOAD_DIR/$current_version.tar.gz
 		fi

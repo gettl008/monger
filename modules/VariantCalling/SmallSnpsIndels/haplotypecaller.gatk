@@ -264,8 +264,8 @@ $AUTHOR_INFO"
 			then
 				command="samtools view -b \
 					$file \
-					> $outdir/intermediates/$subname.bam" # \
-# 					2>>  $current_proglog"
+					> $outdir/intermediates/$subname.bam \
+					2>>  $current_proglog"
 				echo -e "$command\n" > $current_command
 				eval $command
 				cat $current_command  | sed 's|\s\+| |g' >> $command_file
@@ -274,8 +274,8 @@ $AUTHOR_INFO"
 			fi
 			if ! test -f $file.bai
 			then
-				command="samtools index $file" # \
-					#>  $current_proglog"
+				command="samtools index $file \
+					>  $current_proglog"
 				echo -e "$command\n" > $current_command
 				eval $command
 				cat $current_command  | sed 's|\s\+| |g' >> $command_file
@@ -287,8 +287,8 @@ $AUTHOR_INFO"
 				-I $file \
 				-o $outdir/$subname.g.vcf \
 				--emitRefConfidence GVCF \
-				$haplotypecaller_args" # \
-# 				> $current_proglog 2>&1"
+				$haplotypecaller_args \
+				> $current_proglog 2>&1"
 			echo -e "$command\n" > $current_command
 			eval $command
 			cat $current_command  | sed 's|\s\+| |g' >> $command_file
@@ -324,8 +324,8 @@ $AUTHOR_INFO"
 				-R $REFERENCE_FASTA \
 				$merge_in \
 				-o $outdir/$name.g.vcf \
-				$combinevcfs_args" # \
-# 				> $current_proglog 2>&1"
+				$combinevcfs_args \
+				> $current_proglog 2>&1"
 			echo -e "$command\n" > $current_command
 			eval $command
 			cat $current_command  | sed 's|\s\+| |g' >> $command_file
@@ -360,8 +360,8 @@ $AUTHOR_INFO"
 			-R $REFERENCE_FASTA \
 			$genotype_in \
 			-o $outdir/$name.vcf \
-			$genotypegvcfs_args" # \
-# 			> $current_proglog 2>&1"
+			$genotypegvcfs_args \
+			> $current_proglog 2>&1"
 		echo -e "$command\n" > $current_command
 		eval $command
 		cat $current_command  | sed 's|\s\+| |g' >> $command_file

@@ -20,13 +20,19 @@ function beginswith {
 ###################
 ### MODULE INFO ###
 ###################
-DESCRIPTION="XZ Utils (legacy libzma) provide a general-purpose data-compression library plus command-line tools."
-WEBSITE="https://github.com/kobolabs/liblzma"
-CITATIONS=""
+DESCRIPTION="Collectively, the bedtools utilities are a swiss-army knife of tools for a wide-range of genomics analysis tasks."
+WEBSITE="https://github.com/arq5x/bedtools2"
+CITATIONS="Quinlan AR and Hall IM, 2010. BEDTools: a flexible suite of utilities for comparing genomic features. Bioinformatics. 26, 6, pp. 841–842."
 MODULE_AUTHOR="Noah Gettle"
 YEAR_WRITTEN="2016"
 ###############################################
-MODULE_INFO="DESCRIPTION:\n$DESCRIPTION\nWEBSITE:\n$WEBSITE\nCITATION:\n$CITATION"
+MODULE_INFO=\
+"DESCRIPTION:\n\
+$DESCRIPTION\n\n\
+WEBSITE:\n\
+$WEBSITE\n\n\
+CITATION:\n\
+$CITATION\n\n"
 AUTHOR_INFO="$MODULE_AUTHOR $YEAR_WRITTEN"
 
 function mongerinstall {
@@ -41,7 +47,10 @@ function mongerinstall {
 	####################################
 	############ USAGE #################
 	####################################
-	usage="SYNOPSIS:\nmonger install $module_name\n$MODULE_INFO\n\
+	usage=\
+"SYNOPSIS:\n\
+monger install $module_name\n\n\
+$MODULE_INFO\
 OPTIONS:\n\
   -i | --install_dir [DIR]\tInstallation directory [/usr/local/]\n\
   -f | --force\t\t\tOverwrite existing program executables.\n\	
@@ -85,6 +94,7 @@ $AUTHOR_INFO"
 	####################################
 	####### INSTALL DEPENDENCIES #######
 	####################################
+	
 
 	###############################################
 
@@ -92,38 +102,33 @@ $AUTHOR_INFO"
 	####### INSTALL MAIN PROGRAM #######
 	####################################
 
-	###########
-	# LIBLZMA #
-	###########
-	liblzmaafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'liblzma.a | head -1'`
-	liblzmapcfile=`find $LD_LIBRARY_PATH_SEP -maxdepth 2 -name 'liblzma.pc'`
-	liblzmahfile=`find $INCLUDE_SEP -maxdepth 1 -name 'lzma.h'`
-	liblzmadirfile=`find $INCLUDE_SEP -maxdepth 1 -name 'lzma'`
-	if [ "$liblzmaafile" == "" ] || [ "$liblzmapcfile" == "" ] || [ "$liblzmahfile" == "" ] || [ "$liblzmadirfile" == "" ] || [ $FORCE == "TRUE" ]
+	#########
+	# HTSEQ #
+	#########
+	if ! type "bedtools" >/dev/null 2>/dev/null || [ $FORCE == "TRUE" ]
 	then
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
 		cd $DOWNLOAD_DIR
-		rm -rf $DOWNLOAD_DIR/liblzma
-		git clone https://github.com/kobolabs/liblzma
-		cd $DOWNLOAD_DIR/liblzma
-		./configure prefix=$INSTALL_DIR
+		if ! type -d $DOWNLOAD_DIR/bedtools2-2.26.0
+		then
+			if ! type -d $DOWNLOAD_DIR/v2.26.0.tar.gz
+			then
+				wget https://github.com/arq5x/bedtools2/archive/v2.26.0.tar.gz
+			fi
+			tar -zxvf $DOWNLOAD_DIR/v2.26.0.tar.gz
+		fi
+		cd $DOWNLOAD_DIR/bedtools2-2.26.0
 		make
-		make install
-		LIBLZMA_DIR=$INSTALL_DIR
+		cp $DOWNLOAD_DIR/bedtools2-2.26.0/bin/* $INSTALL_DIR/bin/
+		if ! type "bedtools" >/dev/null 2>/dev/null 
+		then
+			echo "MONGER INSTALL ERROR: Something went wrong when installing $MODULE_NAME. Sorry, but you may need to try manual installation."
+			exit 1
+		fi
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
-		LIBLZMA_DIR=`dirname $liblzmaafile`
-		LIBLZMA_DIR=`dirname $LIBLZMA_DIR`
-	fi
-	
-	if `grep -q "export LIBLZMA_DIR=" ~/.bashrc`
-	then
-		sed -i "s|export LIBLZMA_DIR=.*|export LIBLZMA_DIR=$LIBLZMA_DIR|" ~/.bashrc
-	else
-		echo "export LIBLZMA_DIR=$LIBLZMA_DIR" >> ~/.bashrc
 	fi
 }
-
 
 ############################################################
 if [ "$1" == "run" ]
@@ -137,6 +142,6 @@ then
 else
 	echo -e \
 "SYNOPSIS:\n\
-monger [run|install] $module_name\n$MODULE_INFO\n$AUTHOR_INFO"
+monger [run|install] $module_name\n\n$MODULE_INFO$AUTHOR_INFO"
 	exit 1
 fi

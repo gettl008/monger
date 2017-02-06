@@ -257,15 +257,15 @@ $AUTHOR_INFO"
 			--reference $REFERENCE_FASTA \
 			$inputs \
 			| bcftools call -vm -O z \
-			-o $outdir/$name.vcf.gz" # \
-# 			> $current_proglog 2>&1"
+			-o $outdir/$name.vcf.gz \
+			> $current_proglog 2>&1"
 		echo -e "$command\n" > $current_command
 		eval $command
 		cat $current_command  | sed 's|\s\+| |g' >> $command_file
 		# cat $current_proglog >> $program_log_file
 		command="tabix \
 			-p vcf \
-			$outdir/$name.vcf.gz" # \
+			$outdir/$name.vcf.gz # \
 # 			> $current_proglog 2>&1"
 		echo -e "$command\n" > $current_command
 		eval $command
@@ -273,8 +273,8 @@ $AUTHOR_INFO"
 		# cat $current_proglog >> $program_log_file
 		command="bgzip -df \
 			-@ $SUBTHREADS \
-			$outdir/$name.vcf.gz" # \
-# 			> $current_proglog 2>&1"
+			$outdir/$name.vcf.gz \
+			> $current_proglog 2>&1"
 		echo -e "$command\n" > $current_command
 		eval $command
 		cat $current_command  | sed 's|\s\+| |g' >> $command_file

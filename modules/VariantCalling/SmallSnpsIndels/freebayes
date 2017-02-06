@@ -322,8 +322,8 @@ $AUTHOR_INFO"
 			-f $REFERENCE_FASTA \
 			-v $outdir/$name.vcf \
 			$freebayes_args \
-			$inputs" # \
-# 			> $current_proglog 2>&1"
+			$inputs \
+			> $current_proglog 2>&1"
 		echo -e "$command\n" > $current_command
 		eval $command
 		cat $current_command  | sed 's|\s\+| |g' >> $command_file

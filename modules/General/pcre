@@ -96,21 +96,18 @@ $AUTHOR_INFO"
 	########
 	# PCRE #
 	########
-	pcresofile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libpcre.so' | head -1`
-	pcreafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libpcre.a'`
+	pcreafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libpcre.a' | head -1`
 	pcrepcfile=`find $LD_LIBRARY_PATH_SEP -maxdepth 2 -name 'libpcre.pc'`
-	pcrecppsofile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libpcrecpp.so'`
 	pcrecppafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libpcrecpp.a'`
 	pcrecpppcfile=`find $LD_LIBRARY_PATH_SEP -maxdepth 2 -name 'libpcrecpp.pc'`
-	pcreposixsofile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libpcreposix.so'`
 	pcreposixafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libpcreposix.a'`
 	pcreposixpcfile=`find $LD_LIBRARY_PATH_SEP -maxdepth 2 -name 'libpcreposix.pc'`
 	pcrehfile=`find $INCLUDE_SEP -maxdepth 1 -name 'pcre.h'`
 	pcrecpphfile=`find $INCLUDE_SEP -maxdepth 1 -name 'pcrecpp.h'`
 	pcreposixhfile=`find $INCLUDE_SEP -maxdepth 1 -name 'pcreposix.h'`
-	if [ "$pcresofile" == "" ] || [ "$pcreafile" == "" ] || [ "$pcrepcfile" == "" ] \
-		|| [ "$pcrecppsofile" == "" ] || [ "$pcrecppafile" == "" ] || [ "$pcrecpppcfile" == "" ] \
-		|| [ "$pcreposixsofile" == "" ] || [ "$pcreposixafile" == "" ] || [ "$pcreposixpcfile" == "" ] \
+	if [ "$pcreafile" == "" ] || [ "$pcrepcfile" == "" ] \
+		|| [ "$pcrecppafile" == "" ] || [ "$pcrecpppcfile" == "" ] \
+		|| [ "$pcreposixafile" == "" ] || [ "$pcreposixpcfile" == "" ] \
 		|| [ "$pcrehfile" == "" ] || [ "$pcrecpphfile" == "" ] || [ "$pcreposixhfile" == "" ] \
 		|| [ $FORCE == "TRUE" ]
 	then
@@ -129,7 +126,7 @@ $AUTHOR_INFO"
 		PCRE_DIR=$INSTALL_DIR
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
-		PCRE_DIR=`dirname $pcrehfile`
+		PCRE_DIR=`dirname $pcreafile`
 		PCRE_DIR=`dirname $PCRE_DIR`
 	fi
 	

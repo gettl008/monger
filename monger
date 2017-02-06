@@ -427,7 +427,7 @@ function monger.run {
 	OUTPUT_DIRECTORY=~/monger.output
 	PROJECT_NAME=`date +"%d-%m-%y"`
 	PHRED_BASE=33
-	THREADS=`nproc`
+	THREADS=1 #`nproc`
 	SUBTHREADS=1
 	SEQUENCING_FORMAT=se
 	XMODULE_DIR=

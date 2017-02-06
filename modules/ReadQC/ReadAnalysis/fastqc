@@ -190,12 +190,12 @@ $AUTHOR_INFO"
 						exit 1
 					else
 						input_list=$1
-						field_num=`awk -F'[\t ]' '{print NF}' $input_list`
-						name=`awk -F'[\t ]' -v last_field="$field_num" '{print $last_field}' $input_list`
+						field_num=`awk '{print NF}' $input_list`
+						name=`awk -v last_field="$field_num" '{print $last_field}' $input_list`
 						index=1
 						while [ $index -lt $field_num ]
 						do
-							input=`awk -F'[\t ]' -v field="$index" '{print $field}' $input_list`
+							input=`awk -v field="$index" '{print $field}' $input_list`
 							if ! test -f "$input"
 							then
 								echo -e "\nMONGER RUN $MODULE_NAME WARNING: Cannot find input file $input. Skipping...\n"

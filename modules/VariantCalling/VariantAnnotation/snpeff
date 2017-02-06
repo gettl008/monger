@@ -98,9 +98,9 @@ $AUTHOR_INFO"
 	###### INSTALL MAIN PROGRAM ########
 	####################################
 
-	#############
-	# FREEBAYES #
-	#############
+	##########
+	# SNPEFF #
+	##########
 	if ! type "snpEff.jar" >/dev/null 2>/dev/null || [ $FORCE == "TRUE" ]
 	then
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
@@ -347,8 +347,8 @@ $AUTHOR_INFO"
 			$snpeff_database \
 			$inputs \
 			$snpeff_args \
-			1> $outdir/$name.vcf" # \
-# 			2> $current_proglog"
+			1> $outdir/$name.vcf \
+			2> $current_proglog"
 		echo -e "$command\n" > $current_command
 		eval $command
 		cat $current_command  | sed 's|\s\+| |g' >> $command_file

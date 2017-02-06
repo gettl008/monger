@@ -119,15 +119,14 @@ $AUTHOR_INFO"
 		echo "export BZIP_DIR=$BZIP_DIR" >> ~/.bashrc
 	fi
 
-	if [[ "$LDFLAGS" != *"-L$BZIP2_DIR/lib"* ]]
+	if ! `echo "$LDFLAGS" | grep -q "\-L$BZIP2_DIR/lib"`
 	then
 		export LDFLAGS="$LDFLAGS -L$BZIP_DIR/lib"
 	fi
-	if [[ "$CFLAGS" != *"-I$BZIP_DIR/include"* ]]
+	if ! `echo $CFLAGS | grep -q "\-I$BZIP_DIR/include"`
 	then
 		export CFLAGS="$CFLAGS -I$BZIP_DIR/include"
 	fi
-	
 }
 
 ############################################################

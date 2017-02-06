@@ -95,11 +95,10 @@ $AUTHOR_INFO"
 	########
 	# ZLIB #
 	########
-	libzsofile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libz.so' | head -1`
-	libzafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libz.a'`
+	libzafile=`find $LD_LIBRARY_PATH_SEP -maxdepth 1 -name 'libz.a' | head -1`
 	zlibpcfile=`find $LD_LIBRARY_PATH_SEP -maxdepth 2 -name 'zlib.pc'`
 	zlibhfile=`find $INCLUDE_SEP -maxdepth 1 -name 'zlib.h'`
-	if [ "$libzsofile" == "" ] || [ "$libzafile" == "" ] || [ "$zlibpcfile" == "" ] || [ "$zlibhfile" == "" ] || [ "$FORCE" == "TRUE" ]
+	if [ "$libzafile" == "" ] || [ "$zlibpcfile" == "" ] || [ "$zlibhfile" == "" ] || [ "$FORCE" == "TRUE" ]
 	then
 		echo -e "> MONGER INSTALL: Installing $MODULE_NAME."
 		cd $DOWNLOAD_DIR
@@ -116,7 +115,7 @@ $AUTHOR_INFO"
 		ZLIB_DIR=$INSTALL_DIR
 	else
 		echo "> MONGER INSTALL: $MODULE_NAME already installed. Skipping..."
-		ZLIB_DIR=`dirname $libzsofile`
+		ZLIB_DIR=`dirname $libzafile`
 		ZLIB_DIR=`dirname $ZLIB_DIR`
 	fi
 	if `grep -q "export ZLIB_DIR=" ~/.bashrc`

@@ -349,8 +349,8 @@ $AUTHOR_INFO"
 			--countsOutFile $outdir/$name.cts \
 			--vcfOutFile $outdir/$name.vcf \
 			$baysic_inputs \
-			$baysic_args" # \
-# 			> $current_proglog 2>&1"
+			$baysic_args \
+			> $current_proglog 2>&1"
 		echo -e "$command\n" > $current_command
 		eval $command
 		cat $current_command  | sed 's|\s\+| |g' >> $command_file
